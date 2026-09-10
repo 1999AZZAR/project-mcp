@@ -49,8 +49,15 @@ describe('ToolRegistry', () => {
       ]));
     });
 
-    test('should have exactly 34 tools', () => {
-      expect(allTools).toHaveLength(34);
+    test('should include session bridge tools', () => {
+      const toolNames = allTools.map(t => t.name);
+
+      expect(toolNames).toContain('list_harness_stores');
+      expect(toolNames).toContain('sync_harness_sessions');
+    });
+
+    test('should have exactly 36 tools', () => {
+      expect(allTools).toHaveLength(36);
     });
 
     test('should include UI tools', () => {

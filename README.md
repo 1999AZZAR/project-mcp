@@ -56,6 +56,13 @@ A Model Context Protocol (MCP) server for persistent project memory, knowledge-g
 
 - **On-Demand Web UI**: Launch a terminal-themed interactive node graph via `start_ui` (and `close_ui`/`stop_ui` to free the port) to visually pan, search, and explore the project state. Desktop-only with mobile gate (`<768px` overlay), always-visible entity browser, clustered amber orbs → expand to cyan per-observation, cursor-streamed `GET /api/graph/stream?cursor=&limit=500` + `react-window` virtual list, `>1k` physics freeze.
 
+### Harness Session Bridge
+- **Read-only ingestion from 8 agent harnesses**: `opencode`, `kilocode`, `zed`, `delta`, `antigravity`, `cursor`, `vscode`, `codex`. Sources are opened read-only (SQLite `OPEN_READONLY`, capped JSONL scans) — the bridge never writes to harness stores and never touches harness processes.
+- **What's harvested**: session titles, summaries/previews, timestamps, project directories, models, message/step counts. Full transcripts and binaries are never ingested.
+- **Secret redaction first**: API keys, tokens, bearer credentials, private keys, and password assignments are replaced with `[REDACTED]` before anything reaches the graph.
+- **Incremental + idempotent**: per-session watermarks in a `harness_sync` table — re-runs only pick up new or updated sessions; `dryRun` previews without writing.
+- **Absent stores are honest**: harnesses with no local store on the machine (e.g. Cursor/VS Code when not installed) report `found: false` instead of failing. Store paths are overridable via `HARNESS_<ID>_PATH`.
+
 ### Streamlined Database Operations
 
 ![Blotcat efficiently sorting raw data blocks on a conveyor belt into the structured memory.db SQLite wall](assets/blotcat-db-ops.jpg)
@@ -234,7 +241,7 @@ Export memory table data to CSV or JSON file.
 - `options` (optional): Export options (delimiter, includeHeader)
 - `database` (optional): `"project"` or `"central"`, default `"project"`
 
-### Memory and Guidance Tools (11 tools)
+### Memory and Guidance Tools (13 tools)
 
 #### `initialize_memory` - Initialize Memory System
 Set up the project memory database schema and tables.
@@ -310,6 +317,22 @@ Retrieve detailed information about project entities (supports single or batch).
 
 **Parameters:**
 - `names` (required): Array of entity names to retrieve
+
+#### `list_harness_stores` - List Harness Session Stores
+List local agent-harness session stores (opencode, kilocode, zed, delta, antigravity, cursor, vscode, codex): paths, presence, and format notes. Read-only.
+
+**Parameters:** None
+
+#### `sync_harness_sessions` - Sync Harness Sessions Into Memory
+Read-only sync of harness sessions (titles, summaries, timestamps; secrets redacted) into the knowledge graph as `session` entities named `harness:<harness>:<sessionId>`. Incremental via watermarks.
+
+**Parameters:**
+- `harnesses` (optional): Subset to sync (default: all found)
+- `project` (optional): Substring filter on session project/directory
+- `since` (optional): Only sessions updated after this ms epoch
+- `limit` (optional, 1-500, default 50): Max sessions per harness
+- `dryRun` (optional): Report what would sync without writing
+- `includeArchived` (optional): Include archived sessions (default false)
 
 #### `get_project_guidance` - Access AI Guidance
 Invoke a project guidance framework to receive specialized instructions and checklists for specific workflows. This allows the AI to autonomously fetch and follow established project management protocols.

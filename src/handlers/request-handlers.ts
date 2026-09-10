@@ -14,7 +14,10 @@ import {
   AnalyzeGitChangesSchema, CacheDeleteSchema, CacheGetSchema, CacheScanSchema, CacheSetSchema,
   GetSessionContextSchema, InspectUntrustedTextSchema, ScanContainerImageSchema, ScanProjectSecretsSchema,
   SetProjectRootSchema, SetupPreCommitSchema, SyncCentralMemorySchema,
+  ListHarnessStoresSchema, SyncHarnessSessionsSchema,
 } from '../types.js';
+import { locateStores } from '../session-bridge/stores.js';
+import { syncHarnessSessions } from '../session-bridge/sync.js';
 import { RuntimeCapabilities } from '../runtime/runtime-capabilities.js';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
@@ -52,7 +55,8 @@ const toolSchemas: Record<string, z.ZodSchema> = {
   cache_delete: CacheDeleteSchema,
   cache_scan: CacheScanSchema,
   set_project_root: SetProjectRootSchema,
-  setup_pre_commit: SetupPreCommitSchema,
+  list_harness_stores: ListHarnessStoresSchema,
+  sync_harness_sessions: SyncHarnessSessionsSchema,  setup_pre_commit: SetupPreCommitSchema,
   sync_central_memory: SyncCentralMemorySchema,
 };
 
@@ -84,7 +88,7 @@ export class RequestHandlers {
         return await this.handleDatabaseTool(name, args);
       }
 
-      if (['initialize_memory', 'create_entity', 'create_relation', 'add_observation', 'delete_entity', 'delete_observation', 'delete_relation', 'read_graph', 'search_nodes', 'open_node'].includes(name)) {
+      if (['initialize_memory', 'create_entity', 'create_relation', 'add_observation', 'delete_entity', 'delete_observation', 'delete_relation', 'read_graph', 'search_nodes', 'open_node', 'list_harness_stores', 'sync_harness_sessions'].includes(name)) {
         return await this.handleMemoryTool(name, args);
       }
 
@@ -304,6 +308,30 @@ export class RequestHandlers {
       case 'open_node': {
         const entitiesDetails = await this.memoryManager.openNodes(args.names);
         return { success: true, data: entitiesDetails };
+      }
+
+      case 'list_harness_stores': {
+        return { success: true, data: locateStores() };
+      }
+
+      case 'sync_harness_sessions': {
+        const results = await syncHarnessSessions(this.sqliteManager, this.memoryManager, {
+          harnesses: args.harnesses,
+          project: args.project,
+          since: args.since,
+          limit: args.limit,
+          dryRun: args.dryRun,
+          includeArchived: args.includeArchived,
+        });
+        const created = results.reduce((n, r) => n + r.created, 0);
+        const updated = results.reduce((n, r) => n + r.updated, 0);
+        return {
+          success: true,
+          data: results,
+          message: args.dryRun
+            ? `Dry run: ${created} would create, ${updated} would update`
+            : `Synced ${created} new, ${updated} updated sessions`,
+        };
       }
     }
   }

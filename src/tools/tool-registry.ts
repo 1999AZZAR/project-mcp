@@ -3,12 +3,14 @@ import { databaseTools } from './database-tools.js';
 import { memoryTools } from './memory-tools.js';
 import { guidanceTools } from './guidance-tools.js';
 import { runtimeTools } from './runtime-tools.js';
+import { sessionBridgeTools } from './session-bridge-tools.js';
 
 export const allTools: Tool[] = [
   ...databaseTools,
   ...memoryTools,
   ...guidanceTools,
   ...runtimeTools,
+  ...sessionBridgeTools,
   {
     name: 'start_ui',
     description: 'Start the Project Guardian Web UI server on demand. Automatically searches for a free port and returns the local HTTP URL.',

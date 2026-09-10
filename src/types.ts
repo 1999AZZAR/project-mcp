@@ -133,8 +133,7 @@ const RestoreDatabaseSchema = z.object({
 });
 
 // Memory Management schemas
-const CreateEntitySchema = z.object({
-  name: z.string().min(1),
+const CreateEntitySchema = z.object({  name: z.string().min(1),
   entityType: z.string().min(1),
   observations: z.array(z.string()).min(1),
 });
@@ -376,3 +375,28 @@ export interface SearchResult {
   entities: Entity[];
   relations: Relation[];
 }
+
+// Session bridge schemas (read-only harness session ingestion)
+export const ListHarnessStoresSchema = z.object({});
+
+const HarnessIdSchema = z.enum([
+  'opencode',
+  'kilocode',
+  'zed',
+  'delta',
+  'antigravity',
+  'cursor',
+  'vscode',
+  'codex',
+]);
+
+export const SyncHarnessSessionsSchema = z.object({
+  harnesses: z.array(HarnessIdSchema).optional(),
+  project: z.string().optional(),
+  since: z.number().optional(),
+  limit: z.number().min(1).max(500).optional(),
+  dryRun: z.boolean().optional(),
+  includeArchived: z.boolean().optional(),
+});
+
+export type SyncHarnessSessionsInput = z.infer<typeof SyncHarnessSessionsSchema>;
