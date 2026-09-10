@@ -1,6 +1,6 @@
 ---
 name: guardian-session
-description: "Restore relevant Project Guardian context from memory.db at session start. Use when resuming project work, switching repositories, or answering what was previously in progress; surface active tasks, open bugs, recent observations, and blockers."
+description: "Restore relevant Project Guardian context from memory.db at session start. Use when resuming project work, switching repositories, or answering what was previously in progress; surface active tasks, open bugs, recent observations, and blockers. Can also pull prior sessions from other agent harnesses (opencode, codex, zed, antigravity…) into memory."
 ---
 
 # Guardian Session — Context Loader
@@ -85,6 +85,26 @@ Provide a concise briefing:
 - What's currently in progress (active tasks)
 - What's blocking progress (open bugs, dependency chains)
 - Suggested next action
+
+### 6. Pull Cross-Harness Sessions (optional, when prior work may live elsewhere)
+
+Other harnesses keep their own session stores. The bridge reads them **read-only** — it never writes to harness stores or touches harness processes.
+
+```
+list_harness_stores
+```
+
+Then preview before writing anything:
+
+```
+sync_harness_sessions harnesses=["opencode","codex"] project="<current-project>" dryRun=true
+```
+
+If the preview looks right, run it for real (omit `dryRun`). Rules:
+- Secrets are redacted before anything reaches the graph (`[REDACTED]`); transcripts and binaries are never ingested — titles, summaries, timestamps only.
+- Sync is incremental (per-session watermarks) and idempotent: re-running picks up only new or updated sessions.
+- Stores absent on this machine (e.g. Cursor/VS Code when not installed) report `found: false` — skip them, don't retry.
+- Synced sessions land as `session` entities named `harness:<harness>:<sessionId>`; search them like any other node afterward.
 
 ## Context Loading Script
 
