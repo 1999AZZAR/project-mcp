@@ -161,7 +161,12 @@ export class RequestHandlers {
   private async handleRuntimeTool(name: string, args: any): Promise<unknown> {
     switch (name) {
       case 'set_project_root': return this.setProjectRoot(args);
-      case 'setup_pre_commit': await this.memoryManager.setupProjectFiles(); return { message: 'Pre-commit configuration installed in the active project root' };
+      case 'setup_pre_commit':
+        // P0-A7: installs git hooks into the project root — opt-in host mutation.
+        if (process.env['HELA_GENOME_ALLOW_DESTRUCTIVE'] !== 'true') {
+          throw new Error('setup_pre_commit is disabled (set HELA_GENOME_ALLOW_DESTRUCTIVE=true to enable)');
+        }
+        await this.memoryManager.setupProjectFiles(); return { message: 'Pre-commit configuration installed in the active project root' };
       case 'sync_central_memory': return this.memoryManager.syncToCentral();
       case 'get_session_context': return this.runtimeCapabilities!.getSessionContext(args);
       case 'analyze_git_changes': return this.runtimeCapabilities!.analyzeGitChanges(args);
@@ -183,8 +188,14 @@ export class RequestHandlers {
   private async handleDatabaseTool(name: string, args: any): Promise<any> {
     const database = this.resolveDatabase(args.database);
     switch (name) {
-      case 'execute_sql':
+      case 'execute_sql': {
+        // P0-A7: raw SQL reads always allowed; writes need explicit opt-in.
+        const head = String(args.query || '').trim().split(/\s+/)[0]?.toUpperCase();
+        if (!['SELECT', 'WITH', 'PRAGMA', 'EXPLAIN'].includes(head) && process.env['HELA_GENOME_ALLOW_SQL_WRITE'] !== 'true') {
+          throw new Error(`refusing ${head || 'empty'} via execute_sql (set HELA_GENOME_ALLOW_SQL_WRITE=true to enable writes)`);
+        }
         return await this.sqliteManager.executeSql(database, args.query, args.parameters);
+      }
 
       case 'query_data':
         return await this.sqliteManager.queryData(
@@ -204,6 +215,10 @@ export class RequestHandlers {
         return await this.sqliteManager.updateData(database, args.table, args.conditions, args.updates);
 
       case 'delete_data':
+        // P0-A7: bulk delete is destructive — opt-in.
+        if (process.env['HELA_GENOME_ALLOW_DESTRUCTIVE'] !== 'true') {
+          throw new Error('delete_data is disabled (set HELA_GENOME_ALLOW_DESTRUCTIVE=true to enable)');
+        }
         return await this.sqliteManager.deleteData(database, args.table, args.conditions);
 
       case 'import_data':

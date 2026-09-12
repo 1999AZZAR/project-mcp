@@ -23,6 +23,7 @@ import { ResourceHandlers } from './resources/resource-registry.js';
 import { projectGuardianPrompts } from './prompts/prompt-registry.js';
 import { PromptHandlers } from './prompts/prompt-registry.js';
 import { RequestHandlers } from './handlers/request-handlers.js';
+import { textResult, errorResult } from './envelope.js';
 import { BEHAVIORAL_PROTOCOL_SYSTEM_MESSAGE } from './prompts/behavioral-protocol.js';
 import { RuntimeCapabilities } from './runtime/runtime-capabilities.js';
 import { PathGuard } from './runtime/path-guard.js';
@@ -118,20 +119,14 @@ export class DatabaseMCPServer {
 
       try {
         const result = await this.requestHandlers.handleToolCall(name, args);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
+        // P1-C1: single choke point — HELA_ENVELOPE=true wraps in HelaResult,
+        // default returns the legacy raw JSON text byte-identical to before.
+        return textResult(name, result);
       } catch (error) {
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error instanceof Error ? error.message : 'Unknown error',
-            }, null, 2)
-          }],
-          isError: true,
-        };
+        return errorResult(
+          name,
+          error instanceof Error ? error.message : 'Unknown error',
+        );
       }
     });
   }

@@ -2,7 +2,7 @@ import sqlite3 from 'sqlite3';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { redactSecrets, cleanObservations, truncate } from '../src/session-bridge/redact';
+import { redactSecrets, cleanObservations, cleanObservationsWithMeta, redactSecretsWithMeta, truncate } from '../src/session-bridge/redact';
 import { locateStores } from '../src/session-bridge/stores';
 import {
   extractAntigravityConversations,
@@ -47,6 +47,23 @@ describe('session-bridge/redact', () => {
   test('dedups and caps observations', () => {
     const out = cleanObservations(['hi', 'hi', 'x', 'a proper observation here']);
     expect(out).toEqual(['a proper observation here']);
+  });
+
+  test('WithMeta twins: same output + named redaction metadata', () => {
+    const texts = ['fixed the login bug', 'token ghp_abcdefghijklmnop leaked', 'password=supersecret123 here'];
+    const { observations, redaction } = cleanObservationsWithMeta(texts);
+    expect(observations).toEqual(cleanObservations(texts));
+    expect(observations[1]).toContain('[REDACTED]');
+    expect(redaction.applied).toBe(true);
+    expect(redaction.fields).toContain('github_pat');
+    expect(redaction.fields).toContain('key_value_secret');
+
+    const clean = cleanObservationsWithMeta(['fixed the login bug']);
+    expect(clean.redaction).toEqual({ applied: false, fields: [] });
+
+    const single = redactSecretsWithMeta('key sk-or-v1-abcdefghijklmnop here');
+    expect(single.text).toBe(redactSecrets('key sk-or-v1-abcdefghijklmnop here'));
+    expect(single.fields).toEqual(['openai_key']);
   });
 });
 

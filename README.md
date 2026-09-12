@@ -787,6 +787,9 @@ The server reads these variables at startup:
 | `GUARDIAN_AUTO_MERGE` | unset | Set to `1` to enable scattered-database consolidation at startup. This merges nested `memory.db` files into the project-root database and deletes them, so leave it unset when sub-projects keep separate memories |
 | `REDIS_URL` | unset | Enables the Redis-backed `cache_*` tools |
 | `XDG_DATA_HOME` | platform default | Base directory for the shared fallback database outside a Git repository |
+| `HELA_GENOME_ALLOW_SQL_WRITE` | *unset = off* | Set to `true` to allow `execute_sql` writes. Reads (`SELECT`/`WITH`/`PRAGMA`/`EXPLAIN`) always allowed. |
+| `HELA_GENOME_ALLOW_DESTRUCTIVE` | *unset = off* | Set to `true` to allow `delete_data` and `setup_pre_commit` (Git hook install). |
+| `HELA_ENVELOPE` | *unset = off* | Set to `true` to wrap tool results in the canonical HeLaResult envelope (`ok/summary/data/artifacts/provenance/warnings/sideEffects/execution`). Off = byte-identical legacy output. Run/step ids propagate from `HELA_RUN_ID`/`HELA_STEP_ID`. |
 
 MCP clients launch servers with their own working directory, which is often your home folder rather than the project you are editing. In that situation Git detection cannot find the project and every session writes to the shared fallback database. Two ways to fix this:
 

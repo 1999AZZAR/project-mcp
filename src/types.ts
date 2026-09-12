@@ -133,6 +133,15 @@ const RestoreDatabaseSchema = z.object({
 });
 
 // Memory Management schemas
+// P1-C2: optional provenance refs for externally-sourced observation facts.
+// Parallel to `contents` by index; absent entries stay bare strings.
+const ObservationProvenanceSchema = z.object({
+  source: z.string().min(1),
+  retrieved_at: z.string().min(1),
+  confidence: z.number().min(0).max(1).optional(),
+  freshness: z.enum(['fresh', 'cached', 'stale']).optional(),
+});
+
 const CreateEntitySchema = z.object({  name: z.string().min(1),
   entityType: z.string().min(1),
   observations: z.array(z.string()).min(1),
@@ -143,6 +152,7 @@ export const CreateEntitiesSchema = z.object({
     name: z.string().min(1),
     entityType: z.string().min(1),
     observations: z.array(z.string()),
+    provenance: z.array(ObservationProvenanceSchema).optional(),
   })).min(1),
 });
 
@@ -169,6 +179,7 @@ export const AddObservationsSchema = z.object({
   observations: z.array(z.object({
     entityName: z.string().min(1),
     contents: z.array(z.string()),
+    provenance: z.array(ObservationProvenanceSchema).optional(),
   })).min(1),
 });
 

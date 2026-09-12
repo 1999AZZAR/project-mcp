@@ -1,5 +1,10 @@
 import { SQLiteManager } from './sqlite-manager.js';
 import { Entity, Relation, KnowledgeGraph, SearchResult } from './types.js';
+import {
+  ObservationProvenance,
+  ensureObservationProvenanceSchema,
+  recordObservationProvenance,
+} from './observation-provenance.js';
 import { embedText, toVecString } from './vector-manager.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -135,6 +140,8 @@ export class MemoryManager {
     await this.ensureFtsSchema(this.memoryDbName);
     const vecRes = await this.sqliteManager.executeSql(this.memoryDbName, `CREATE VIRTUAL TABLE IF NOT EXISTS vec_entities USING vec0(embedding float[384])`);
     if (!vecRes.success) console.warn('[vec] create table failed for', this.memoryDbName, vecRes.error);
+    // P1-C2: provenance sidecar for externally-sourced observation facts
+    await ensureObservationProvenanceSchema(this.sqliteManager, this.memoryDbName);
     this.projectSchemaReady = true;
   }
 
@@ -163,6 +170,8 @@ export class MemoryManager {
     }
 
     await this.ensureCentralSchema();
+    // P1-C2: central sidecar so synced observations keep their provenance refs
+    await ensureObservationProvenanceSchema(this.sqliteManager, this.centralDbPath);
 
     // batch in single transaction — was N separate writes, now 1 fsync
     await this.sqliteManager.executeSql(this.centralDbPath, 'BEGIN TRANSACTION');
@@ -174,6 +183,24 @@ export class MemoryManager {
           [entity.name, entity.entityType, JSON.stringify(entity.observations), entity.createdAt, entity.updatedAt]
         );
         if (!r.success) throw new Error(r.error);
+        // P1-C2: carry the entity's provenance sidecar rows to central (idempotent)
+        const prov = await this.sqliteManager.executeSql(
+          this.memoryDbName,
+          `SELECT observation, source, retrieved_at, confidence, freshness FROM observation_provenance WHERE entity_name = ?`,
+          [entity.name]
+        );
+        if (prov.success && prov.data) {
+          for (const row of prov.data.rows as any[]) {
+            const cp = await this.sqliteManager.executeSql(
+              this.centralDbPath,
+              `INSERT OR REPLACE INTO observation_provenance
+               (entity_name, observation, source, retrieved_at, confidence, freshness)
+               VALUES (?, ?, ?, ?, ?, ?)`,
+              [entity.name, row.observation, row.source, row.retrieved_at, row.confidence ?? null, row.freshness ?? null]
+            );
+            if (!cp.success) throw new Error(cp.error);
+          }
+        }
       }
       for (const relation of graph.relations) {
         const r = await this.sqliteManager.executeSql(
@@ -467,7 +494,7 @@ export class MemoryManager {
     await this.syncToCentralSafe();
   }
 
-  async createEntity(name: string, entityType: string, observations: string[]): Promise<Entity> {
+  async createEntity(name: string, entityType: string, observations: string[], provenance?: Array<ObservationProvenance | undefined>): Promise<Entity> {
     if (!this.projectSchemaReady) await this.ensureProjectSchema();
     const now = new Date().toISOString();
 
@@ -495,6 +522,9 @@ export class MemoryManager {
     const text = `${name} ${entityType} ${observations.join(' ')}`;
     await this.upsertVec(this.memoryDbName, name, text);
 
+    // P1-C2: provenance sidecar (best-effort, never fails the create)
+    await recordObservationProvenance(this.sqliteManager, this.memoryDbName, name, observations, provenance);
+
     return {
       name,
       entityType,
@@ -504,7 +534,7 @@ export class MemoryManager {
     };
   }
 
-  async createEntities(entities: Array<{ name: string; entityType: string; observations: string[] }>): Promise<Entity[]> {
+  async createEntities(entities: Array<{ name: string; entityType: string; observations: string[]; provenance?: Array<ObservationProvenance | undefined> }>): Promise<Entity[]> {
     if (!this.projectSchemaReady) await this.ensureProjectSchema();
     const results: Entity[] = [];
     // single transaction for batch — avoids N fsyncs
@@ -512,7 +542,7 @@ export class MemoryManager {
     try {
       for (const entity of entities) {
         try {
-          const created = await this.createEntity(entity.name, entity.entityType, entity.observations);
+          const created = await this.createEntity(entity.name, entity.entityType, entity.observations, entity.provenance);
           results.push(created);
         } catch (error) {
           console.error(`Failed to create entity ${entity.name}:`, error);
@@ -585,7 +615,7 @@ export class MemoryManager {
     return results;
   }
 
-  async addObservation(entityName: string, contents: string[]): Promise<Entity> {
+  async addObservation(entityName: string, contents: string[], provenance?: Array<ObservationProvenance | undefined>): Promise<Entity> {
     if (!this.projectSchemaReady) await this.ensureProjectSchema();
     // Get current entity
     const result = await this.sqliteManager.queryData(this.memoryDbName, 'entities', { name: entityName });
@@ -612,6 +642,9 @@ export class MemoryManager {
     const text = `${entityName} ${entity.entity_type} ${updatedObservations.join(' ')}`;
     await this.upsertVec(this.memoryDbName, entityName, text);
 
+    // P1-C2: provenance sidecar (best-effort, never fails the write)
+    await recordObservationProvenance(this.sqliteManager, this.memoryDbName, entityName, contents, provenance);
+
     return {
       name: entity.name,
       entityType: entity.entity_type,
@@ -621,14 +654,14 @@ export class MemoryManager {
     };
   }
 
-  async addObservations(observations: Array<{ entityName: string; contents: string[] }>): Promise<Entity[]> {
+  async addObservations(observations: Array<{ entityName: string; contents: string[]; provenance?: Array<ObservationProvenance | undefined> }>): Promise<Entity[]> {
     if (!this.projectSchemaReady) await this.ensureProjectSchema();
     const results: Entity[] = [];
     await this.sqliteManager.executeSql(this.memoryDbName, 'BEGIN TRANSACTION');
     try {
       for (const obs of observations) {
         try {
-          const updated = await this.addObservation(obs.entityName, obs.contents);
+          const updated = await this.addObservation(obs.entityName, obs.contents, obs.provenance);
           results.push(updated);
         } catch (error) {
           console.error(`Failed to add observations to entity ${obs.entityName}:`, error);
