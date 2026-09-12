@@ -10,8 +10,11 @@ export default {
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   transform: {
-    '^.+\.ts$': ['ts-jest', {
+    '^.+\\.ts$': ['ts-jest', {
       useESM: true,
+      diagnostics: {
+        ignoreCodes: [1343],
+      },
     }],
   },
   moduleFileExtensions: ['ts', 'js', 'json'],

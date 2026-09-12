@@ -27,6 +27,7 @@ import { textResult, errorResult } from './envelope.js';
 import { BEHAVIORAL_PROTOCOL_SYSTEM_MESSAGE } from './prompts/behavioral-protocol.js';
 import { RuntimeCapabilities } from './runtime/runtime-capabilities.js';
 import { PathGuard } from './runtime/path-guard.js';
+import { HttpAdapter } from './http-adapter.js';
 
 export class DatabaseMCPServer {
   private server: Server;
@@ -38,6 +39,7 @@ export class DatabaseMCPServer {
   private requestHandlers: RequestHandlers;
   private runtimeCapabilities: RuntimeCapabilities;
   private uiManager: UIManager;
+  private httpAdapter?: HttpAdapter;
 
   constructor() {
     // Single source of truth for the project root:
@@ -87,7 +89,12 @@ export class DatabaseMCPServer {
       this.uiManager.stop.bind(this.uiManager)
     );
 
-    this.server = new Server(
+    this.server = this.createMcpServer();
+    this.setupErrorHandling();
+  }
+
+  public createMcpServer(): Server {
+    const server = new Server(
       {
         name: 'project-guardian-mcp',
         version: '2.0.0-beta-2',
@@ -101,20 +108,20 @@ export class DatabaseMCPServer {
       }
     );
 
-    this.setupToolHandlers();
-    this.setupResourceHandlers();
-    this.setupPromptHandlers();
-    this.setupErrorHandling();
+    this.setupToolHandlers(server);
+    this.setupResourceHandlers(server);
+    this.setupPromptHandlers(server);
+    return server;
   }
 
-  private setupToolHandlers(): void {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+  private setupToolHandlers(server: Server = this.server): void {
+    server.setRequestHandler(ListToolsRequestSchema, async () => {
       return {
         tools: allTools,
       };
     });
 
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
 
       try {
@@ -132,16 +139,16 @@ export class DatabaseMCPServer {
   }
 
 
-  private setupResourceHandlers(): void {
+  private setupResourceHandlers(server: Server = this.server): void {
     // List available resources
-    this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
+    server.setRequestHandler(ListResourcesRequestSchema, async () => {
       return {
         resources: projectGuardianResources,
       };
     });
 
     // Read specific resources
-    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       const { uri } = request.params;
 
       try {
@@ -176,16 +183,16 @@ export class DatabaseMCPServer {
     }
   }
 
-  private setupPromptHandlers(): void {
+  private setupPromptHandlers(server: Server = this.server): void {
     // List available prompts
-    this.server.setRequestHandler(ListPromptsRequestSchema, async () => {
+    server.setRequestHandler(ListPromptsRequestSchema, async () => {
       return {
         prompts: projectGuardianPrompts,
       };
     });
 
     // Get specific prompts
-    this.server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+    server.setRequestHandler(GetPromptRequestSchema, async (request) => {
       const { name, arguments: args = {} } = request.params;
 
       try {
@@ -249,10 +256,31 @@ export class DatabaseMCPServer {
     process.on('SIGTERM', shutdown);
   }
 
-  async run(): Promise<void> {
+  async run(options: { transport?: 'stdio' | 'http'; port?: number; host?: string } = {}): Promise<void> {
     await this.initializeMemorySystem();
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
+    const envTransport = process.env['MCP_TRANSPORT'];
+    const transportMode = options.transport || (envTransport === 'http' ? 'http' : 'stdio');
+    if (transportMode === 'http') {
+      const envPort = process.env['PORT'];
+      const envHost = process.env['HOST'];
+      const port = options.port ?? (envPort ? parseInt(envPort, 10) : 8012);
+      const host = options.host ?? envHost ?? '0.0.0.0';
+      this.httpAdapter = new HttpAdapter(() => this.createMcpServer(), { port, host });
+      await this.httpAdapter.start();
+    } else {
+      const transport = new StdioServerTransport();
+      await this.server.connect(transport);
       console.error('Project Guardian MCP server running on stdio');
+    }
+  }
+
+  async stop(): Promise<void> {
+    if (this.httpAdapter) {
+      await this.httpAdapter.close();
+    }
+    await Promise.race([
+      Promise.allSettled([this.sqliteManager.closeAllConnections(), this.runtimeCapabilities.close(), this.uiManager.stop()]),
+      new Promise(resolve => setTimeout(resolve, 5000))
+    ]);
   }
 }
