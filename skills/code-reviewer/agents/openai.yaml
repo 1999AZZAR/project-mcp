@@ -1,0 +1,4 @@
+interface:
+  display_name: "Code Reviewer"
+  short_description: "Review local changes, Git ranges, and pull requests"
+  default_prompt: "Use $code-reviewer to review these code changes and report actionable findings."
