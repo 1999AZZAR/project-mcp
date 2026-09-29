@@ -129,7 +129,33 @@ describe('RequestHandlers', () => {
     });
 
     test('should handle delete_data tool', async () => {
-      // Create test table and insert data
+      // delete_data is gated behind an explicit opt-in; enable it for this
+      // test, which exercises the tool rather than the gate.
+      process.env['HELA_GENOME_ALLOW_DESTRUCTIVE'] = 'true';
+      try {
+        // Create test table and insert data
+        const schema = {
+          columns: [
+            { name: 'id', type: 'INTEGER', constraints: ['PRIMARY KEY'] },
+            { name: 'name', type: 'TEXT' }
+          ]
+        };
+        await sqliteManager.createTable('memory', 'test_table', schema);
+        await sqliteManager.insertData('memory', 'test_table', [{ id: 1, name: 'Test' }]);
+
+        const result = await requestHandlers.handleToolCall('delete_data', {
+          table: 'test_table',
+          conditions: { id: 1 }
+        });
+
+        expect(result).toHaveProperty('success', true);
+      } finally {
+        delete process.env['HELA_GENOME_ALLOW_DESTRUCTIVE'];
+      }
+    });
+
+    test('should refuse delete_data unless destructive tools are enabled', async () => {
+      delete process.env['HELA_GENOME_ALLOW_DESTRUCTIVE'];
       const schema = {
         columns: [
           { name: 'id', type: 'INTEGER', constraints: ['PRIMARY KEY'] },
@@ -139,12 +165,17 @@ describe('RequestHandlers', () => {
       await sqliteManager.createTable('memory', 'test_table', schema);
       await sqliteManager.insertData('memory', 'test_table', [{ id: 1, name: 'Test' }]);
 
-      const result = await requestHandlers.handleToolCall('delete_data', {
-        table: 'test_table',
-        conditions: { id: 1 }
-      });
+      await expect(
+        requestHandlers.handleToolCall('delete_data', {
+          table: 'test_table',
+          conditions: { id: 1 }
+        })
+      ).rejects.toThrow(/HELA_GENOME_ALLOW_DESTRUCTIVE/);
 
-      expect(result).toHaveProperty('success', true);
+      // the row must still be there
+      const result = await sqliteManager.queryData('memory', 'test_table', {});
+      expect(result.success).toBe(true);
+      expect(result.data?.rowCount).toBe(1);
     });
   });
 
