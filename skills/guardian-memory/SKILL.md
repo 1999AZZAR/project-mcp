@@ -11,7 +11,7 @@ Every project interaction creates knowledge. This skill ensures nothing is lost.
 
 ## Safety
 
-- Never store credentials, tokens, private keys, or sensitive personal data in observations.
+- Never store credentials, tokens, private keys, or sensitive personal data in observations (use `<private>...</private>` tags to ensure sensitive blocks are automatically stripped).
 - Ask before any operation that installs hooks, modifies repository files, consolidates databases, or deletes source databases.
 - Record significant work only; skip trivial reads, formatting, and transient details.
 
@@ -42,13 +42,21 @@ create_entity entities=[{
 
 ### 2. On Every Session Start
 
-Search for entities related to the current project, directory, file, or topic:
+Use progressive disclosure to avoid context window bloat:
 
 ```
-search_nodes query="<file-or-topic>"
+search_nodes query="<file-or-topic>" detailLevel="compact"
 ```
 
-Use `open_node` for exact entities. Use `read_graph` only when the graph is known to be small or the user explicitly requests a complete view.
+Or inspect recent chronological project activity:
+```
+get_timeline limit=10
+```
+
+Use `open_node` to retrieve full observation details only on the specific entities needed. Before editing or refactoring an existing project file, run:
+```
+get_file_context filePath="src/path/to/file.ts"
+```
 
 ### 3. During Work — Track Everything
 

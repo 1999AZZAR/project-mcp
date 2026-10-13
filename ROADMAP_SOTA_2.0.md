@@ -35,4 +35,5 @@ From niche SOTA (local-first Git-aware knowledge graph) to universal SOTA (hybri
 - [x] Branch `feat/phase2-scale` `fa033ec` + `c2dd6ca` streaming/LOD/vacuum — merged `e43ca01` to `master` for `2.0.0-beta-2`, branches deleted
 
 ## References
-- Current (master `6fa5d90` `2.0.0-beta-2`): 34 tools (7 DB +10 memory +1 guidance +12 runtime +4 UI/stream), 10 suites 93 tests (91+2 e2e), 0 vulns (master audit 0, feat 5 with @xenova before prune), WAL+64M cap+VACUUM+`POST /api/vacuum`, cursor stream 500/page `GET /api/graph/stream`, LOD auto-collapse `>300` + `react-window` `403k B2DK7m-f.js`, `c2085a3` flex, `0398ef8` mobile gate
+- Current (master `6fa5d90` `2.0.0-beta-2`): 34 tools...
+- Current (feat/claude-mem-enhancements 2.0.0-beta-3): 38 tools (7 DB + 12 memory + 1 guidance + 12 runtime + 2 session bridge + 4 UI/stream), 14 suites 139 tests, Claude-Mem progressive disclosure (compact/summary/full) + get_file_context + get_timeline + <private> tag sanitization + hooks/ zero-touch capture

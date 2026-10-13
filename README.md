@@ -3,7 +3,7 @@
 
 > **Part of the [HeLa MCP Ecosystem](https://github.com/1999AZZAR/hela-mcp-ecosystem)** — This server is **HeLa Genome (`hela-genome`)** — the *State & Memory* component of the HeLa cellular architecture. See the [ecosystem docs](https://github.com/1999AZZAR/hela-mcp-ecosystem) for profiles, workflows, and multi-client setup.
 
-A Model Context Protocol (MCP) server for persistent project memory, knowledge-graph operations, SQLite data access, runtime security checks, and guided project-management workflows. The current registry exposes 34 tools, 11 resources, and 27 prompts.
+A Model Context Protocol (MCP) server for persistent project memory, knowledge-graph operations, SQLite data access, runtime security checks, and guided project-management workflows. The current registry exposes 38 tools, 11 resources, and 27 prompts.
 
 ![Blotcat — guardian on duty, wiring the knowledge graph from memory.db](assets/blotcat-hero.jpg)
 
@@ -20,7 +20,7 @@ A Model Context Protocol (MCP) server for persistent project memory, knowledge-g
 - [Installation](#installation)
 - [Available Tools](#available-tools)
   - [Database Operations (7 tools)](#database-operations-7-tools)
-  - [Memory and Guidance Tools (11 tools)](#memory-and-guidance-tools-11-tools)
+  - [Memory and Guidance Tools (15 tools)](#memory-and-guidance-tools-15-tools)
   - [Runtime Companion Tools (12 tools)](#runtime-companion-tools-12-tools)
   - [UI Tools (4 tools)](#ui-tools-3-tools)
 - [AI Guidance System](#ai-guidance-system)
@@ -48,6 +48,10 @@ A Model Context Protocol (MCP) server for persistent project memory, knowledge-g
 - **Entity Management**: Projects, tasks, people, resources with rich metadata
 - **Relationship Mapping**: Dependencies, ownership, blockers, and connections
 - **Observation Tracking**: Contextual notes and progress updates
+- **Progressive Disclosure Retrieval**: `search_nodes` supports tiered retrieval via `detailLevel: compact | summary | full`. Compact mode returns IDs, types, observation counts, and 1-line previews (~50 tokens) to prevent context window bloat, followed by on-demand deep recall via `open_node`.
+- **Pre-File Context & Timeline**: Call `get_file_context` before reading or refactoring a file to review prior modifications, linked tasks (`implements`), and open bugs (`affects`). Call `get_timeline` for chronological event feeds.
+- **Privacy Guardrails**: Built-in stripping of `<private>...</private>` and `<!-- private -->` tags before persisting observations or indexing into vector embeddings.
+- **Zero-Touch Lifecycle Hooks**: Shell/Node scripts under `hooks/` (`session-start.mjs`, `post-tool-run.mjs`) enable automated context injection and change tracking for Claude Code, Cursor, and Git hooks.
 - **Semantic Search**: Fast, localized RAG matching via SQLite's native FTS5 extension (`MATCH` and `bm25()` ranking) across entity names, types, and observations
 - **Per-Project Memory**: Each project gets its own `memory.db`. The server resolves the project root in this order: the `GUARDIAN_PROJECT_ROOT` environment variable, then the Git toplevel of its working directory, then `$XDG_DATA_HOME/project-guardian` as a shared fallback outside any Git repository
 - **Central Memory Mirror**: Every memory write also syncs into one central database at `~/memory/memory.db`, giving an aggregated, searchable map across all projects and a fallback when a project database is unavailable. Reads through `read_graph` and `search_nodes` merge both stores, with project entries taking precedence
@@ -70,7 +74,7 @@ A Model Context Protocol (MCP) server for persistent project memory, knowledge-g
 - **Core CRUD**: Essential database operations (query, insert, update, delete)
 - **SQL Execution**: Direct SQL query execution
 - **Data Transfer**: Import/export CSV and JSON files
-- **34 Tools Total**: Seven database tools, ten memory tools, one guidance tool, twelve runtime companion tools, and four UI/stream tools (`start_ui`, `close_ui`, `stop_ui`, `read_graph_stream`)
+- **38 Tools Total**: Seven database tools, twelve memory tools (`initialize_memory`, `create_entity`, `create_relation`, `add_observation`, `delete_entity`, `delete_observation`, `delete_relation`, `read_graph`, `search_nodes`, `open_node`, `get_file_context`, `get_timeline`), one guidance tool, twelve runtime companion tools, two session bridge tools, and four UI/stream tools (`start_ui`, `close_ui`, `stop_ui`, `read_graph_stream`)
 
 ### Runtime Companion Integration
 
@@ -80,7 +84,7 @@ The repository includes six `guardian-*` AgentSkills and exposes their operation
 
 | Companion | Runtime role | MCP surface |
 | --- | --- | --- |
-| `guardian-memory` | Persistent entities, relations, and observations | Ten memory tools |
+| `guardian-memory` | Persistent entities, relations, and observations | Twelve memory tools |
 | `guardian-session` | Active-task, bug, blocker, and recent-change summaries | `get_session_context` |
 | `guardian-tracker` | Bounded Git diff and untracked-file analysis | `analyze_git_changes` |
 | `guardian-wall` | Untrusted-text normalization and prompt-injection detection | `inspect_untrusted_text` |

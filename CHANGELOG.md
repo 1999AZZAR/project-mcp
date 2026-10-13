@@ -2,6 +2,16 @@
 
 All notable changes to Project Guardian MCP.
 
+## [2.0.0-beta-3] - 2026-10-14
+
+### Added
+- **Claude-Mem: Progressive Disclosure Retrieval** — `search_nodes` with `detailLevel: compact|summary|full` (compact yields ~50 tokens/entity with `observationCount` and preview).
+- **Claude-Mem: Pre-file Context** — new MCP tool `get_file_context` (38 tools total, was 36) to look up prior modifications, linked tasks (`implements`), and linked bugs before file edits.
+- **Claude-Mem: Chronological Timeline** — new MCP tool `get_timeline` with `entityType` and `since` temporal filters.
+- **Claude-Mem: Privacy Guardrails** — automated stripping of `<private>...</private>` and `<!-- private -->` tags before SQLite storage or vector embedding.
+- **Claude-Mem: Zero-Touch Lifecycle Hooks** — `hooks/session-start.mjs` (Tier 1 session brief) and `hooks/post-tool-run.mjs` (automatic git/edit observation capture via built-in `node:sqlite`).
+- **Tests** — 14 test suites, 139 passing tests (added `__tests__/claude-mem-features.test.ts`).
+
 ## [2.0.0-beta-2] - 2026-08-27
 
 ### Added
