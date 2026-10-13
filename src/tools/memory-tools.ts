@@ -1,7 +1,7 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 
 export const memoryTools: Tool[] = [
-  // Project Guardian Memory Tools (10 tools)
+  // Project Guardian Memory Tools (12 tools)
   {
     name: 'initialize_memory',
     description: 'Initialize the project memory system and database schema',
@@ -154,11 +154,14 @@ export const memoryTools: Tool[] = [
   },
   {
     name: 'search_nodes',
-    description: 'Search project entities and relations by query',
+    description: 'Search project entities and relations with hybrid RAG and progressive disclosure',
     inputSchema: {
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Search term for entities and relations' },
+        limit: { type: 'number', description: 'Max items to return (1-100, default 20)' },
+        mode: { type: 'string', enum: ['keyword', 'vector', 'hybrid'], description: 'Search mode (default keyword)' },
+        detailLevel: { type: 'string', enum: ['compact', 'summary', 'full'], description: 'Progressive disclosure level (compact: token-saving IDs & previews, summary: recent observations, full: complete graph)' },
       },
       required: ['query'],
     },
@@ -177,6 +180,29 @@ export const memoryTools: Tool[] = [
         },
       },
       required: ['names'],
+    },
+  },
+  {
+    name: 'get_file_context',
+    description: 'Get historical memory, recent modifications, linked tasks, and open bugs for a specific file path before editing or reading',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        filePath: { type: 'string', description: 'Relative or absolute file path to look up' },
+      },
+      required: ['filePath'],
+    },
+  },
+  {
+    name: 'get_timeline',
+    description: 'Get a chronological feed of recent observations and project activity',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        since: { type: 'string', description: 'ISO date string or timestamp filter' },
+        entityType: { type: 'string', description: 'Filter by entity type (task, bug, decision, file, project)' },
+        limit: { type: 'number', description: 'Max events to return (1-100, default 20)' },
+      },
     },
   },
 ];

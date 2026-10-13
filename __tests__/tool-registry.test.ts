@@ -38,6 +38,8 @@ describe('ToolRegistry', () => {
       expect(toolNames).toContain('read_graph');
       expect(toolNames).toContain('search_nodes');
       expect(toolNames).toContain('open_node');
+      expect(toolNames).toContain('get_file_context');
+      expect(toolNames).toContain('get_timeline');
     });
 
     test('should include runtime companion tools', () => {
@@ -56,8 +58,8 @@ describe('ToolRegistry', () => {
       expect(toolNames).toContain('sync_harness_sessions');
     });
 
-    test('should have exactly 36 tools', () => {
-      expect(allTools).toHaveLength(36);
+    test('should have exactly 38 tools', () => {
+      expect(allTools).toHaveLength(38);
     });
 
     test('should include UI tools', () => {
@@ -84,6 +86,19 @@ describe('ToolRegistry', () => {
       expect(createEntityTool).toBeDefined();
       expect(createEntityTool!.inputSchema).toHaveProperty('type', 'object');
       expect(createEntityTool!.inputSchema.properties).toHaveProperty('entities');
+    });
+    test('should have valid schema for get_file_context tool', () => {
+      const fileTool = allTools.find(t => t.name === 'get_file_context');
+      expect(fileTool).toBeDefined();
+      expect(fileTool!.inputSchema).toHaveProperty('type', 'object');
+      expect(fileTool!.inputSchema.properties).toHaveProperty('filePath');
+    });
+
+    test('should have valid schema for get_timeline tool', () => {
+      const timelineTool = allTools.find(t => t.name === 'get_timeline');
+      expect(timelineTool).toBeDefined();
+      expect(timelineTool!.inputSchema).toHaveProperty('type', 'object');
+      expect(timelineTool!.inputSchema.properties).toHaveProperty('limit');
     });
   });
 });

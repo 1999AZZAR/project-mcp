@@ -221,7 +221,20 @@ export const SearchNodesSchema = z.object({
   query: z.string().min(1),
   limit: z.number().int().min(1).max(100).default(20).optional(),
   mode: z.enum(['keyword', 'vector', 'hybrid']).default('keyword').optional(),
+  detailLevel: z.enum(['compact', 'summary', 'full']).default('full').optional(),
 });
+
+export const GetFileContextSchema = z.object({
+  filePath: z.string().min(1),
+});
+export type GetFileContextInput = z.infer<typeof GetFileContextSchema>;
+
+export const GetTimelineSchema = z.object({
+  since: z.string().optional(),
+  entityType: z.string().optional(),
+  limit: z.number().int().min(1).max(100).default(20).optional(),
+});
+export type GetTimelineInput = z.infer<typeof GetTimelineSchema>;
 
 export const ReadGraphStreamSchema = z.object({
   cursor: z.string().optional(),
@@ -370,6 +383,15 @@ export interface Entity {
   updatedAt: string;
 }
 
+export interface CompactEntity {
+  name: string;
+  entityType: string;
+  observationCount: number;
+  preview?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Relation {
   from: string;
   to: string;
@@ -383,8 +405,32 @@ export interface KnowledgeGraph {
 }
 
 export interface SearchResult {
-  entities: Entity[];
+  entities: Array<Entity | CompactEntity>;
   relations: Relation[];
+  detailLevel?: 'compact' | 'summary' | 'full';
+}
+
+export interface FileContextResult {
+  filePath: string;
+  entityName: string;
+  existsInMemory: boolean;
+  entity?: Entity;
+  recentObservations: string[];
+  relations: Relation[];
+  linkedTasks: string[];
+  linkedBugs: string[];
+}
+
+export interface TimelineEntry {
+  entityName: string;
+  entityType: string;
+  observation: string;
+  timestamp: string;
+}
+
+export interface TimelineResult {
+  entries: TimelineEntry[];
+  total: number;
 }
 
 // Session bridge schemas (read-only harness session ingestion)

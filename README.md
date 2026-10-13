@@ -241,7 +241,7 @@ Export memory table data to CSV or JSON file.
 - `options` (optional): Export options (delimiter, includeHeader)
 - `database` (optional): `"project"` or `"central"`, default `"project"`
 
-### Memory and Guidance Tools (13 tools)
+### Memory and Guidance Tools (15 tools)
 
 #### `initialize_memory` - Initialize Memory System
 Set up the project memory database schema and tables.
@@ -305,18 +305,37 @@ Retrieve the full knowledge graph, merging the active project database with the 
 - `limit` (optional, 1-10000, default 5000): Max entities/relations to return, `ORDER BY updated_at DESC`
 - `offset` (optional, 0+): Rows to skip
 
-#### `search_nodes` - Search Project Knowledge
-Search for entities and relations matching a query across names, types, and content, in both the project database and the central aggregate. Uses FTS5 `MATCH` + `bm25()` ranking.
+#### `search_nodes` - Search Project Knowledge (Hybrid RAG & Progressive Disclosure)
+Search for entities and relations matching a query across names, types, and content, using SQLite FTS5 (BM25) and local vector embeddings with Reciprocal Rank Fusion (RRF $k=60$). Supports progressive disclosure to prevent token bloat.
 
 **Parameters:**
 - `query` (required): Search term
 - `limit` (optional, 1-100, default 20): Max ranked entities to return
+- `mode` (optional): `"keyword"` (FTS5 BM25, default), `"vector"` (`sqlite-vec` 384d), or `"hybrid"` (RRF fusion)
+- `detailLevel` (optional): Progressive disclosure level:
+  - `"compact"`: Returns lightweight IDs, entity types, observation counts, and 1-line previews (~50 tokens each).
+  - `"summary"`: Returns last 2 truncated observations.
+  - `"full"`: Full entity graph with all observations (default).
 
 #### `open_node` - Get Entity Details
-Retrieve detailed information about project entities (supports single or batch).
+Retrieve complete information and all observations about specific project entities (Tier 3 deep recall).
 
 **Parameters:**
 - `names` (required): Array of entity names to retrieve
+
+#### `get_file_context` - Fast File History & Context Lookup
+Pre-flight check before editing or reading a file. Retrieves prior modification observations, linked features/tasks (`implements`), and linked blockers/bugs (`affects` / `blocks`).
+
+**Parameters:**
+- `filePath` (required): Workspace-relative or absolute file path (e.g. `"src/auth/jwt.ts"`)
+
+#### `get_timeline` - Chronological Activity Feed
+Returns a chronological stream of project observations and events sorted newest first.
+
+**Parameters:**
+- `since` (optional): ISO date string or timestamp filter
+- `entityType` (optional): Filter by entity type (task, bug, file, decision, project)
+- `limit` (optional, 1-100, default 20): Max events to return
 
 #### `list_harness_stores` - List Harness Session Stores
 List local agent-harness session stores (opencode, kilocode, zed, delta, antigravity, cursor, vscode, codex): paths, presence, and format notes. Read-only.

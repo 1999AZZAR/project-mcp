@@ -8,7 +8,7 @@ import {
   DeleteDataSchema, ImportFromFileSchema, ExportToFileSchema,
   CreateEntitiesSchema, CreateRelationsSchema, AddObservationsSchema,
   DeleteEntitiesSchema, DeleteObservationsSchema, DeleteRelationsSchema,
-  SearchNodesSchema, OpenNodesSchema, ReadGraphSchema, ReadGraphStreamSchema
+  SearchNodesSchema, OpenNodesSchema, ReadGraphSchema, ReadGraphStreamSchema, GetFileContextSchema, GetTimelineSchema
 } from '../types.js';
 import {
   AnalyzeGitChangesSchema, CacheDeleteSchema, CacheGetSchema, CacheScanSchema, CacheSetSchema,
@@ -45,6 +45,8 @@ const toolSchemas: Record<string, z.ZodSchema> = {
   search_nodes: SearchNodesSchema,
   open_node: OpenNodesSchema,
   read_graph: ReadGraphSchema,
+  get_file_context: GetFileContextSchema,
+  get_timeline: GetTimelineSchema,
   get_session_context: GetSessionContextSchema,
   analyze_git_changes: AnalyzeGitChangesSchema,
   inspect_untrusted_text: InspectUntrustedTextSchema,
@@ -88,7 +90,7 @@ export class RequestHandlers {
         return await this.handleDatabaseTool(name, args);
       }
 
-      if (['initialize_memory', 'create_entity', 'create_relation', 'add_observation', 'delete_entity', 'delete_observation', 'delete_relation', 'read_graph', 'search_nodes', 'open_node', 'list_harness_stores', 'sync_harness_sessions'].includes(name)) {
+      if (['initialize_memory', 'create_entity', 'create_relation', 'add_observation', 'delete_entity', 'delete_observation', 'delete_relation', 'read_graph', 'search_nodes', 'open_node', 'get_file_context', 'get_timeline', 'list_harness_stores', 'sync_harness_sessions'].includes(name)) {
         return await this.handleMemoryTool(name, args);
       }
 
@@ -316,13 +318,27 @@ export class RequestHandlers {
       }
 
       case 'search_nodes': {
-        const searchResult = await this.memoryManager.searchNodes(args.query, args.limit, args.mode);
+        const searchResult = await this.memoryManager.searchNodes(args.query, args.limit, args.mode, args.detailLevel);
         return { success: true, data: searchResult };
       }
 
       case 'open_node': {
         const entitiesDetails = await this.memoryManager.openNodes(args.names);
         return { success: true, data: entitiesDetails };
+      }
+
+      case 'get_file_context': {
+        const fileContext = await this.memoryManager.getFileContext(args.filePath);
+        return { success: true, data: fileContext };
+      }
+
+      case 'get_timeline': {
+        const timeline = await this.memoryManager.getTimeline({
+          since: args.since,
+          entityType: args.entityType,
+          limit: args.limit,
+        });
+        return { success: true, data: timeline };
       }
 
       case 'list_harness_stores': {

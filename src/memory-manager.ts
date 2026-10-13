@@ -1,5 +1,6 @@
 import { SQLiteManager } from './sqlite-manager.js';
-import { Entity, Relation, KnowledgeGraph, SearchResult } from './types.js';
+import { Entity, Relation, KnowledgeGraph, SearchResult, CompactEntity, FileContextResult, TimelineResult, TimelineEntry } from './types.js';
+import { sanitizePrivateContent } from './utils/sanitize.js';
 import {
   ObservationProvenance,
   ensureObservationProvenanceSchema,
@@ -504,7 +505,8 @@ export class MemoryManager {
       throw new Error(`Entity '${name}' already exists`);
     }
 
-    const observationsJson = JSON.stringify(observations);
+    const sanitizedObservations = observations.map(o => sanitizePrivateContent(o));
+    const observationsJson = JSON.stringify(sanitizedObservations);
 
     const insertResult = await this.sqliteManager.insertData(this.memoryDbName, 'entities', [{
       name,
@@ -519,16 +521,16 @@ export class MemoryManager {
     }
 
     // best-effort vector embed (name + observations)
-    const text = `${name} ${entityType} ${observations.join(' ')}`;
+    const text = `${name} ${entityType} ${sanitizedObservations.join(' ')}`;
     await this.upsertVec(this.memoryDbName, name, text);
 
     // P1-C2: provenance sidecar (best-effort, never fails the create)
-    await recordObservationProvenance(this.sqliteManager, this.memoryDbName, name, observations, provenance);
+    await recordObservationProvenance(this.sqliteManager, this.memoryDbName, name, sanitizedObservations, provenance);
 
     return {
       name,
       entityType,
-      observations,
+      observations: sanitizedObservations,
       createdAt: now,
       updatedAt: now
     };
@@ -624,8 +626,9 @@ export class MemoryManager {
     }
 
     const entity = result.data.rows[0];
+    const sanitizedContents = contents.map(c => sanitizePrivateContent(c));
     const currentObservations = this.safeParseObservations(entity.observations);
-    const updatedObservations = [...currentObservations, ...contents];
+    const updatedObservations = [...currentObservations, ...sanitizedContents];
     const now = new Date().toISOString();
 
     await this.sqliteManager.updateData(
@@ -643,7 +646,7 @@ export class MemoryManager {
     await this.upsertVec(this.memoryDbName, entityName, text);
 
     // P1-C2: provenance sidecar (best-effort, never fails the write)
-    await recordObservationProvenance(this.sqliteManager, this.memoryDbName, entityName, contents, provenance);
+    await recordObservationProvenance(this.sqliteManager, this.memoryDbName, entityName, sanitizedContents, provenance);
 
     return {
       name: entity.name,
@@ -940,17 +943,17 @@ export class MemoryManager {
     return [...toRels(pr), ...toRels(cr)];
   }
 
-  async searchNodes(query: string, limit: number = 20, mode: string = 'keyword'): Promise<SearchResult> {
+  async searchNodes(query: string, limit: number = 20, mode: string = 'keyword', detailLevel: string = 'full'): Promise<SearchResult> {
     const cappedLimit = Math.min(Math.max(limit, 1), 100);
     const effMode = (mode as string) || 'keyword';
+    let rawResult: SearchResult;
     if (effMode === 'vector') {
       const [p, c] = await Promise.all([this.vecSearchDb(this.memoryDbName, query, cappedLimit), this.vecSearchDb(this.centralDbPath, query, cappedLimit)]);
       const rels = await this.searchRelationsBoth(query);
-      return this.mergeGraphs([{ entities: p, relations: [] }, { entities: c, relations: [] }, { entities: [], relations: rels }]);
-    }
-    if (effMode === 'hybrid') {
+      rawResult = this.mergeGraphs([{ entities: p, relations: [] }, { entities: c, relations: [] }, { entities: [], relations: rels }]);
+    } else if (effMode === 'hybrid') {
       // FTS + vector RRF
-      const fts = await this.searchNodes(query, cappedLimit, 'keyword');
+      const fts = await this.searchNodes(query, cappedLimit, 'keyword', 'full');
       const vecP = await this.vecSearchDb(this.memoryDbName, query, cappedLimit);
       const vecC = await this.vecSearchDb(this.centralDbPath, query, cappedLimit);
       const vecEntities = [...vecP, ...vecC];
@@ -960,7 +963,7 @@ export class MemoryManager {
       const ftsList = fts.entities;
       ftsList.forEach((e, i) => {
         const s = 1 / (k + i + 1);
-        scores.set(e.name, { e, score: s });
+        scores.set(e.name, { e: e as Entity, score: s });
       });
       vecEntities.forEach((e, i) => {
         const s = 1 / (k + i + 1);
@@ -970,65 +973,96 @@ export class MemoryManager {
       });
       const ranked = [...scores.values()].sort((a, b) => b.score - a.score).slice(0, cappedLimit).map(v => v.e);
       // relations from keyword search
-      return { entities: ranked, relations: fts.relations };
+      rawResult = { entities: ranked, relations: fts.relations };
+    } else {
+      // keyword default
+      const sanitizedQuery = query.replace(/[^a-zA-Z0-9_\s]/g, ' ').trim().replace(/\s+/g, ' OR ');
+      
+      // Fallback to basic LIKE if query is empty after sanitization
+      if (!sanitizedQuery) {
+        return { entities: [], relations: [], detailLevel: detailLevel as any };
+      }
+
+      // Search entities using FTS5 BM25 ranking
+      const entitiesQuery = `
+        SELECT e.* 
+        FROM entities e
+        JOIN entities_fts fts ON e.rowid = fts.rowid
+        WHERE entities_fts MATCH ?
+        ORDER BY bm25(entities_fts)
+        LIMIT ${cappedLimit}
+      `;
+
+      // Relations don't have FTS, keep LIKE but scoped to the sanitized terms
+      const searchTerm = `%${query.toLowerCase()}%`;
+      const relationsQuery = `
+        SELECT * FROM relations
+        WHERE LOWER(relation_type) LIKE ? OR LOWER(from_entity) LIKE ? OR LOWER(to_entity) LIKE ?
+      `;
+
+      const [projectEntities, projectRelations, centralEntities, centralRelations] = await Promise.all([
+        this.sqliteManager.executeSql(this.memoryDbName, entitiesQuery, [sanitizedQuery]),
+        this.sqliteManager.executeSql(this.memoryDbName, relationsQuery, [searchTerm, searchTerm, searchTerm]),
+        this.sqliteManager.executeSql(this.centralDbPath, entitiesQuery, [sanitizedQuery]),
+        this.sqliteManager.executeSql(this.centralDbPath, relationsQuery, [searchTerm, searchTerm, searchTerm])
+      ]);
+
+      const toEntities = (result: { success: boolean; data?: any }) =>
+        (result.success && result.data) ? result.data.rows.map((row: any) => this.rowToEntity(row)) : [];
+      const toRelations = (result: { success: boolean; data?: any }) =>
+        (result.success && result.data) ? result.data.rows.map((row: any) => this.rowToRelation(row)) : [];
+
+      rawResult = this.mergeGraphs([
+        { entities: toEntities(projectEntities), relations: toRelations(projectRelations) },
+        { entities: toEntities(centralEntities), relations: toRelations(centralRelations) }
+      ]);
     }
-    // keyword default
-    const sanitizedQuery = query.replace(/[^a-zA-Z0-9_\s]/g, ' ').trim().replace(/\s+/g, ' OR ');
-    
-    // Fallback to basic LIKE if query is empty after sanitization
-    if (!sanitizedQuery) {
-      return { entities: [], relations: [] };
+
+    if (detailLevel === 'compact') {
+      const compactEntities: CompactEntity[] = (rawResult.entities as Entity[]).map(e => ({
+        name: e.name,
+        entityType: e.entityType,
+        observationCount: e.observations?.length ?? 0,
+        preview: e.observations?.length > 0 ? e.observations[e.observations.length - 1].slice(0, 120) : undefined,
+        createdAt: e.createdAt,
+        updatedAt: e.updatedAt,
+      }));
+      return {
+        entities: compactEntities,
+        relations: rawResult.relations,
+        detailLevel: 'compact',
+      };
     }
-
-    // Search entities using FTS5 BM25 ranking
-    const entitiesQuery = `
-      SELECT e.* 
-      FROM entities e
-      JOIN entities_fts fts ON e.rowid = fts.rowid
-      WHERE entities_fts MATCH ?
-      ORDER BY bm25(entities_fts)
-      LIMIT ${cappedLimit}
-    `;
-
-    // Relations don't have FTS, keep LIKE but scoped to the sanitized terms
-    const searchTerm = `%${query.toLowerCase()}%`;
-    const relationsQuery = `
-      SELECT * FROM relations
-      WHERE LOWER(relation_type) LIKE ? OR LOWER(from_entity) LIKE ? OR LOWER(to_entity) LIKE ?
-    `;
-
-    const [projectEntities, projectRelations, centralEntities, centralRelations] = await Promise.all([
-      this.sqliteManager.executeSql(this.memoryDbName, entitiesQuery, [sanitizedQuery]),
-      this.sqliteManager.executeSql(this.memoryDbName, relationsQuery, [searchTerm, searchTerm, searchTerm]),
-      this.sqliteManager.executeSql(this.centralDbPath, entitiesQuery, [sanitizedQuery]),
-      this.sqliteManager.executeSql(this.centralDbPath, relationsQuery, [searchTerm, searchTerm, searchTerm])
-    ]);
-
-    const toEntities = (result: { success: boolean; data?: any }) =>
-      (result.success && result.data) ? result.data.rows.map((row: any) => this.rowToEntity(row)) : [];
-    const toRelations = (result: { success: boolean; data?: any }) =>
-      (result.success && result.data) ? result.data.rows.map((row: any) => this.rowToRelation(row)) : [];
-
-    return this.mergeGraphs([
-      { entities: toEntities(projectEntities), relations: toRelations(projectRelations) },
-      { entities: toEntities(centralEntities), relations: toRelations(centralRelations) }
-    ]);
+    if (detailLevel === 'summary') {
+      const summaryEntities: Entity[] = (rawResult.entities as Entity[]).map(e => ({
+        ...e,
+        observations: (e.observations ?? []).slice(-2).map(o => o.length > 200 ? o.slice(0, 197) + '...' : o),
+      }));
+      return {
+        entities: summaryEntities,
+        relations: rawResult.relations,
+        detailLevel: 'summary',
+      };
+    }
+    return {
+      ...rawResult,
+      detailLevel: 'full',
+    };
   }
 
   async openNode(name: string): Promise<Entity | null> {
     const result = await this.sqliteManager.queryData(this.memoryDbName, 'entities', { name });
     if (!result.success || !result.data || result.data.rows.length === 0) {
-      return null;
+      const centralResult = await this.sqliteManager.queryData(this.centralDbPath, 'entities', { name });
+      if (!centralResult.success || !centralResult.data || centralResult.data.rows.length === 0) {
+        return null;
+      }
+      const cRow = centralResult.data.rows[0];
+      return this.rowToEntity(cRow);
     }
 
     const row = result.data.rows[0];
-    return {
-      name: row.name,
-      entityType: row.entity_type,
-      observations: this.safeParseObservations(row.observations),
-      createdAt: row.created_at,
-      updatedAt: row.updated_at
-    };
+    return this.rowToEntity(row);
   }
 
   private safeParseObservations(json: string): string[] {
@@ -1050,5 +1084,123 @@ export class MemoryManager {
     }
 
     return entities;
+  }
+
+  async getFileContext(filePath: string): Promise<FileContextResult> {
+    if (!this.projectSchemaReady) await this.ensureProjectSchema();
+    const cleanPath = filePath.replace(/^\.\//, '').trim();
+    const candidateNames = [
+      cleanPath.startsWith('file:') ? cleanPath : `file:${cleanPath}`,
+      cleanPath,
+    ];
+
+    let entity: Entity | null = null;
+    let foundName = candidateNames[0];
+
+    for (const name of candidateNames) {
+      entity = await this.openNode(name);
+      if (entity) {
+        foundName = name;
+        break;
+      }
+    }
+
+    const relQuery = `SELECT * FROM relations WHERE from_entity = ? OR to_entity = ?`;
+    const [pRel, cRel] = await Promise.all([
+      this.sqliteManager.executeSql(this.memoryDbName, relQuery, [foundName, foundName]),
+      this.sqliteManager.executeSql(this.centralDbPath, relQuery, [foundName, foundName]),
+    ]);
+
+    const toRels = (r: any) => (r.success && r.data) ? r.data.rows.map((row: any) => this.rowToRelation(row)) : [];
+    const allRelations: Relation[] = [...toRels(pRel), ...toRels(cRel)];
+    const uniqueRelations = allRelations.filter((r, idx, arr) =>
+      arr.findIndex(x => x.from === r.from && x.to === r.to && x.relationType === r.relationType) === idx
+    );
+
+    const linkedTasks = uniqueRelations
+      .filter(r => r.relationType === 'implements' || r.relationType === 'modified_by')
+      .map(r => r.from === foundName ? r.to : r.from);
+
+    const linkedBugs = uniqueRelations
+      .filter(r => r.relationType === 'blocks' || r.relationType === 'affects')
+      .map(r => r.from === foundName ? r.to : r.from);
+
+    const recentObservations = entity ? entity.observations.slice(-5) : [];
+
+    return {
+      filePath: cleanPath,
+      entityName: foundName,
+      existsInMemory: Boolean(entity),
+      entity: entity ?? undefined,
+      recentObservations,
+      relations: uniqueRelations,
+      linkedTasks: [...new Set(linkedTasks)],
+      linkedBugs: [...new Set(linkedBugs)],
+    };
+  }
+
+  async getTimeline(options: { since?: string; entityType?: string; limit?: number } = {}): Promise<TimelineResult> {
+    if (!this.projectSchemaReady) await this.ensureProjectSchema();
+    const limit = Math.min(Math.max(options.limit ?? 20, 1), 100);
+
+    let sql = 'SELECT name, entity_type, observations, created_at, updated_at FROM entities WHERE 1=1';
+    const params: any[] = [];
+
+    if (options.entityType) {
+      sql += ' AND entity_type = ?';
+      params.push(options.entityType);
+    }
+    if (options.since) {
+      sql += ' AND updated_at >= ?';
+      params.push(options.since);
+    }
+    sql += ' ORDER BY updated_at DESC LIMIT ?';
+    params.push(limit);
+
+    const [pRes, cRes] = await Promise.all([
+      this.sqliteManager.executeSql(this.memoryDbName, sql, params),
+      this.sqliteManager.executeSql(this.centralDbPath, sql, params),
+    ]);
+
+    const toRows = (r: any) => (r.success && r.data) ? r.data.rows : [];
+    const combinedRows = [...toRows(pRes), ...toRows(cRes)];
+
+    const seen = new Set<string>();
+    const entries: TimelineEntry[] = [];
+
+    for (const row of combinedRows) {
+      if (seen.has(row.name)) continue;
+      seen.add(row.name);
+
+      const obsList: string[] = this.safeParseObservations(row.observations);
+      const recentObs = obsList.slice(-3).reverse();
+      if (recentObs.length === 0) {
+        entries.push({
+          entityName: row.name,
+          entityType: row.entity_type,
+          observation: 'Entity updated',
+          timestamp: row.updated_at || row.created_at,
+        });
+      } else {
+        for (const obs of recentObs) {
+          const match = obs.match(/^\[(.*?)\]/);
+          const timestamp = match ? match[1] : (row.updated_at || row.created_at);
+          entries.push({
+            entityName: row.name,
+            entityType: row.entity_type,
+            observation: obs,
+            timestamp,
+          });
+        }
+      }
+    }
+
+    entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    const cappedEntries = entries.slice(0, limit);
+
+    return {
+      entries: cappedEntries,
+      total: cappedEntries.length,
+    };
   }
 }

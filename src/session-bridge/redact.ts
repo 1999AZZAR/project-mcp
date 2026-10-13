@@ -7,6 +7,7 @@
  * `HelaRedaction { applied, fields[] }` shape on stored session observations.
  */
 const NAMED_PATTERNS: Array<{ name: string; pattern: RegExp }> = [
+  { name: 'private_tag', pattern: /<private>[\s\S]*?<\/private>|<!--\s*private\s*-->[\s\S]*?<!--\s*\/private\s*-->/gi },
   { name: 'openai_key', pattern: /sk-(or|proj|ant|live|test)-[A-Za-z0-9_-]{8,}/g },
   { name: 'sk_key', pattern: /sk-[A-Za-z0-9]{16,}/g },
   { name: 'github_pat', pattern: /ghp_[A-Za-z0-9]{10,}/g },
