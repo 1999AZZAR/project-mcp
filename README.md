@@ -173,7 +173,7 @@ When you pull new updates or modify the code, you must rebuild the server and re
 
 ![Blotcat opening a large toolbox with three labeled drawers, holding a wrench](assets/blotcat-tool-categories.jpg)
 
-This MCP server currently provides **34 tools**:
+This MCP server currently provides **38 tools**:
 
 ### Database Operations (7 tools)
 
@@ -933,12 +933,14 @@ project-mcp/
 
 - **server.ts**: MCP server lifecycle, transport, handlers, and shutdown coordination
 - **handlers/request-handlers.ts**: Central dispatcher routing tool calls to appropriate managers
-- **tools/**: Tool definition and registration system (34 tools total)
-  - `tool-registry.ts`: Lists all available tools (7 DB + 10 memory + 1 guidance + 12 runtime + 3 UI)
+- **tools/**: Tool definition and registration system (38 tools total)
+  - `tool-registry.ts`: Lists all available tools (7 DB + 12 memory + 1 guidance + 12 runtime + 2 session bridge + 4 UI/stream)
   - `database-tools.ts`: Database operation schemas (7 tools)
-  - `memory-tools.ts`: Memory management schemas (10 tools)
+  - `memory-tools.ts`: Memory management schemas (12 tools)
+  - `session-bridge-tools.ts`: Session bridge ingestion schemas (2 tools)
   - `guidance-tools.ts`: Autonomous guidance tool schema (1 tool)
   - `runtime-tools.ts`: Typed companion capability schemas (12 tools)
+- **hooks/**: Zero-touch lifecycle hooks (`session-start.mjs`, `post-tool-run.mjs`)
 - **runtime/**: Workspace guards and companion runtime implementations
 - **resources/**: Resource management system (11 resources total)
   - `resource-registry.ts`: Resource listing and content serving

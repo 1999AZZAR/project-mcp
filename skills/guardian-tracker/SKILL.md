@@ -23,10 +23,11 @@ Manually tracking every change is tedious. This skill automates it. After every 
 ### After File Edit/Create
 
 1. Identify what changed (new file? modified? which functions?)
-2. Check if file entity exists:
+2. Check file context, history, and relations:
    ```
-   search_nodes query="file:<path>"
+   get_file_context filePath="<path>"
    ```
+   *(Tip: Automatic tracking can also be automated zero-touch via `hooks/post-tool-run.mjs`)*
 3. Create a missing file entity with `create_entity`; update an existing one with `add_observation`:
    ```
     add_observation observations=[{

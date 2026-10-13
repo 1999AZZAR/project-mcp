@@ -20,27 +20,28 @@ Each session starts fresh. This skill restores context from `memory.db` so you k
 
 ### 1. Load Project State
 
-Search for the current project or topic first:
+Use progressive disclosure to minimize context consumption:
 ```
-search_nodes query="<project-or-topic>"
+search_nodes query="<project-or-topic>" detailLevel="compact"
+```
+Or inspect recent chronological project updates:
+```
+get_timeline limit=10
 ```
 
-Use `read_graph` only when the graph is known to be small or a full view is explicitly needed. Scan for:
+Scan for:
 - Project entities (root nodes)
 - Active tasks (not marked `[COMPLETE]`)
 - Open bugs (not marked `[FIX]`)
 - Recent observations (check `updated_at`)
 
-### 2. Contextualize to Current Directory
+Use `open_node` for complete observation details only on targeted entities.
 
-If working in a subdirectory, search for relevant files:
-```
-search_nodes query="file:<current-dir>"
-```
+### 2. Contextualize to Current Directory / Files
 
-If working on specific files, search for those:
+Before reading or editing specific files, check their historical context:
 ```
-search_nodes query="file:<filename>"
+get_file_context filePath="<path>"
 ```
 
 ### 3. Surface Active Work
