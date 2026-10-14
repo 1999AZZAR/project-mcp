@@ -1,5 +1,3 @@
-import { GetPromptRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-
 export class PromptHandlers {
   async handleGetPrompt(name: string, args: Record<string, any>): Promise<string> {
     try {
@@ -627,12 +625,15 @@ Manage changes systematically to minimize disruption!`;
 
   private generateRequirementsGatheringPrompt(args: Record<string, any>): string {
     const reqType = args.requirement_type || 'functional';
-    const stakeholders = args.stakeholders ? args.stakeholders.split(',').map((s: string) => s.trim()) : [];
+    const stakeholders: string[] = args.stakeholders ? args.stakeholders.split(',').map((s: string) => s.trim()) : [];
+    const stakeholdersSection = stakeholders.length > 0
+      ? `\n\n## Identified Stakeholders:\n${stakeholders.map(s => `- ${s}`).join('\n')}`
+      : '';
 
     return `# ${reqType} Requirements Gathering
 
 ## Overview
-Gather comprehensive ${reqType} requirements from stakeholders.
+Gather comprehensive ${reqType} requirements from stakeholders.${stakeholdersSection}
 
 ## Requirements Types:
 - Functional requirements

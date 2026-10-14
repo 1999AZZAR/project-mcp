@@ -1,4 +1,3 @@
-import { ReadResourceRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { MemoryManager } from '../memory-manager.js';
 import { SQLiteManager } from '../sqlite-manager.js';
 import { getCompanionCatalog } from './companion-catalog.js';
