@@ -1,11 +1,19 @@
-import { SQLiteManager } from '../src/sqlite-manager';
-import { MemoryManager } from '../src/memory-manager';
-import { RequestHandlers } from '../src/handlers/request-handlers';
-import { ImportExportManager } from '../src/import-export';
-import { PromptHandlers } from '../src/prompts/prompt-handlers';
-import { sanitizePrivateContent } from '../src/utils/sanitize';
+import { describe, test, expect, beforeEach, afterEach } from '@jest/globals';
+import { SQLiteManager } from '../src/sqlite-manager.js';
+import { MemoryManager } from '../src/memory-manager.js';
+import { RequestHandlers } from '../src/handlers/request-handlers.js';
+import { ImportExportManager } from '../src/import-export.js';
+import { PromptHandlers } from '../src/prompts/prompt-handlers.js';
+import { sanitizePrivateContent } from '../src/utils/sanitize.js';
+import { Entity, CompactEntity, FileContextResult, TimelineResult, SearchResult } from '../src/types.js';
 import { existsSync, unlinkSync, rmdirSync, readdirSync } from 'fs';
 import { join } from 'path';
+
+interface ToolResponse<T> {
+  success: boolean;
+  data: T;
+  message?: string;
+}
 
 describe('Claude-Mem Enhancement Features for HeLa-Genome', () => {
   let sqliteManager: SQLiteManager;
@@ -40,7 +48,10 @@ describe('Claude-Mem Enhancement Features for HeLa-Genome', () => {
         }
         rmdirSync(testDbPath);
       }
-    } catch {}
+    } catch {
+      // Ignore test cleanup errors
+      void 0;
+    }
   });
 
   describe('Feature A: Privacy & Guardrails (<private> tags)', () => {
@@ -99,11 +110,11 @@ describe('Claude-Mem Enhancement Features for HeLa-Genome', () => {
       expect(result.detailLevel).toBe('compact');
       expect(result.entities.length).toBeGreaterThanOrEqual(1);
 
-      const compact = result.entities[0] as any;
+      const compact = result.entities[0] as CompactEntity;
       expect(compact.name).toBe('task:jwt-auth');
       expect(compact.observationCount).toBe(3);
       expect(compact.preview).toContain('Fixed token expiration edge-case bug');
-      expect(compact.observations).toBeUndefined(); // observations array stripped to conserve context
+      expect('observations' in compact).toBe(false); // observations array stripped to conserve context
     });
 
     test('searchNodes with detailLevel "summary" returns max 2 truncated observations', async () => {
@@ -111,7 +122,7 @@ describe('Claude-Mem Enhancement Features for HeLa-Genome', () => {
       expect(result.detailLevel).toBe('summary');
       expect(result.entities.length).toBeGreaterThanOrEqual(1);
 
-      const summary = result.entities[0] as any;
+      const summary = result.entities[0] as Entity;
       expect(summary.name).toBe('task:jwt-auth');
       expect(summary.observations.length).toBe(2);
       expect(summary.observations[0]).toContain('Obs 2');
@@ -122,7 +133,7 @@ describe('Claude-Mem Enhancement Features for HeLa-Genome', () => {
       const result = await memoryManager.searchNodes('jwt', 10, 'keyword', 'full');
       expect(result.detailLevel).toBe('full');
 
-      const full = result.entities[0] as any;
+      const full = result.entities[0] as Entity;
       expect(full.name).toBe('task:jwt-auth');
       expect(full.observations.length).toBe(3);
     });
@@ -201,7 +212,7 @@ describe('Claude-Mem Enhancement Features for HeLa-Genome', () => {
       await memoryManager.createEntity('file:config.json', 'file', ['Config file notes']);
       const res = (await requestHandlers.handleToolCall('get_file_context', {
         filePath: 'config.json',
-      })) as any;
+      })) as ToolResponse<FileContextResult>;
 
       expect(res.success).toBe(true);
       expect(res.data.existsInMemory).toBe(true);
@@ -212,7 +223,7 @@ describe('Claude-Mem Enhancement Features for HeLa-Genome', () => {
       await memoryManager.createEntity('task:timeline-check', 'task', ['Timeline note']);
       const res = (await requestHandlers.handleToolCall('get_timeline', {
         limit: 5,
-      })) as any;
+      })) as ToolResponse<TimelineResult>;
 
       expect(res.success).toBe(true);
       expect(res.data.entries).toBeDefined();
@@ -223,11 +234,12 @@ describe('Claude-Mem Enhancement Features for HeLa-Genome', () => {
       const res = (await requestHandlers.handleToolCall('search_nodes', {
         query: 'compact',
         detailLevel: 'compact',
-      })) as any;
+      })) as ToolResponse<SearchResult>;
 
       expect(res.success).toBe(true);
       expect(res.data.detailLevel).toBe('compact');
-      expect(res.data.entities[0].observationCount).toBe(2);
+      const first = res.data.entities[0] as CompactEntity;
+      expect(first.observationCount).toBe(2);
     });
   });
 });
