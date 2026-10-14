@@ -62,7 +62,7 @@ try {
   console.log('Tip: Use search_nodes(query, detailLevel="compact") or get_file_context(path) for progressive recall.');
   console.log('-------------------------------------------');
   db.close();
-} catch (err) {
+} catch {
   // Graceful fallback: never crash agent startup
   process.exit(0);
 }

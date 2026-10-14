@@ -95,11 +95,14 @@ try {
           }
         }
       }
-    } catch {}
+    } catch {
+      // Ignore git status inspection error
+      void 0;
+    }
   }
 
   db.close();
-} catch (e) {
+} catch {
   // Never fail parent command
   process.exit(0);
 }

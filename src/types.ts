@@ -1,27 +1,28 @@
+/* eslint-disable no-control-regex */
 import { z } from 'zod';
 
 // Database types
-const DatabaseTypeSchema = z.enum(['sqlite', 'postgresql', 'mysql', 'mongodb']);
+export const DatabaseTypeSchema = z.enum(['sqlite', 'postgresql', 'mysql', 'mongodb']);
 type DatabaseType = z.infer<typeof DatabaseTypeSchema>;
 
 // Database operations schemas
-const CreateDatabaseSchema = z.object({
+export const CreateDatabaseSchema = z.object({
   name: z.string().min(1).max(255),
   type: DatabaseTypeSchema.default('sqlite'),
   path: z.string().optional(), // For SQLite file path
 });
 
-const ListDatabasesSchema = z.object({
+export const ListDatabasesSchema = z.object({
   type: DatabaseTypeSchema.optional(),
 });
 
-const DropDatabaseSchema = z.object({
+export const DropDatabaseSchema = z.object({
   name: z.string().min(1),
   type: DatabaseTypeSchema.default('sqlite'),
 });
 
 // Table operations schemas
-const CreateTableSchema = z.object({
+export const CreateTableSchema = z.object({
   database: z.string().min(1),
   name: z.string().min(1).max(255),
   schema: z.object({
@@ -40,16 +41,16 @@ const CreateTableSchema = z.object({
   }),
 });
 
-const ListTablesSchema = z.object({
+export const ListTablesSchema = z.object({
   database: z.string().min(1),
 });
 
-const DescribeTableSchema = z.object({
+export const DescribeTableSchema = z.object({
   database: z.string().min(1),
   table: z.string().min(1),
 });
 
-const DropTableSchema = z.object({
+export const DropTableSchema = z.object({
   database: z.string().min(1),
   table: z.string().min(1),
 });
@@ -84,7 +85,7 @@ export const DeleteDataSchema = z.object({
   conditions: z.record(z.any()),
 });
 
-const CountRecordsSchema = z.object({
+export const CountRecordsSchema = z.object({
   database: z.string().min(1),
   table: z.string().min(1),
   conditions: z.record(z.any()).optional(),
@@ -122,12 +123,12 @@ export const ExportToFileSchema = z.object({
   }).optional(),
 });
 
-const BackupDatabaseSchema = z.object({
+export const BackupDatabaseSchema = z.object({
   database: z.string().min(1),
   backupPath: z.string().min(1),
 });
 
-const RestoreDatabaseSchema = z.object({
+export const RestoreDatabaseSchema = z.object({
   backupPath: z.string().min(1),
   databaseName: z.string().min(1),
 });
@@ -135,14 +136,14 @@ const RestoreDatabaseSchema = z.object({
 // Memory Management schemas
 // P1-C2: optional provenance refs for externally-sourced observation facts.
 // Parallel to `contents` by index; absent entries stay bare strings.
-const ObservationProvenanceSchema = z.object({
+export const ObservationProvenanceSchema = z.object({
   source: z.string().min(1),
   retrieved_at: z.string().min(1),
   confidence: z.number().min(0).max(1).optional(),
   freshness: z.enum(['fresh', 'cached', 'stale']).optional(),
 });
 
-const CreateEntitySchema = z.object({  name: z.string().min(1),
+export const CreateEntitySchema = z.object({  name: z.string().min(1),
   entityType: z.string().min(1),
   observations: z.array(z.string()).min(1),
 });
@@ -156,7 +157,7 @@ export const CreateEntitiesSchema = z.object({
   })).min(1),
 });
 
-const CreateRelationSchema = z.object({
+export const CreateRelationSchema = z.object({
   from: z.string().min(1),
   to: z.string().min(1),
   relationType: z.string().min(1),
@@ -170,7 +171,7 @@ export const CreateRelationsSchema = z.object({
   })).min(1),
 });
 
-const AddObservationSchema = z.object({
+export const AddObservationSchema = z.object({
   entityName: z.string().min(1),
   contents: z.array(z.string()).min(1),
 });
@@ -183,7 +184,7 @@ export const AddObservationsSchema = z.object({
   })).min(1),
 });
 
-const DeleteEntitySchema = z.object({
+export const DeleteEntitySchema = z.object({
   entityName: z.string().min(1),
 });
 
@@ -191,7 +192,7 @@ export const DeleteEntitiesSchema = z.object({
   entityNames: z.array(z.string()).min(1),
 });
 
-const DeleteObservationSchema = z.object({
+export const DeleteObservationSchema = z.object({
   entityName: z.string().min(1),
   observations: z.array(z.string()).min(1),
 });
@@ -203,7 +204,7 @@ export const DeleteObservationsSchema = z.object({
   })).min(1),
 });
 
-const DeleteRelationSchema = z.object({
+export const DeleteRelationSchema = z.object({
   from: z.string().min(1),
   to: z.string().min(1),
   relationType: z.string().min(1),
@@ -247,7 +248,7 @@ export const ReadGraphSchema = z.object({
   offset: z.number().int().min(0).optional(),
 });
 
-const OpenNodeSchema = z.object({
+export const OpenNodeSchema = z.object({
   name: z.string().min(1),
 });
 
@@ -255,11 +256,11 @@ export const OpenNodesSchema = z.object({
   names: z.array(z.string()).min(1),
 });
 
-const SafeRevisionSchema = z.string().min(1).max(200).refine(
+export const SafeRevisionSchema = z.string().min(1).max(200).refine(
   value => !value.startsWith('-') && !/[\0-\x1f\x7f]/.test(value),
   'Revision must not start with - or contain control characters'
 );
-const CacheKeySchema = z.string().min(1).max(512).regex(
+export const CacheKeySchema = z.string().min(1).max(512).regex(
   /^mema:[a-z]+:[A-Za-z0-9_:.-]+$/,
   'Key must match mema:<category>:<name>'
 );
@@ -361,6 +362,7 @@ export interface IndexInfo {
 
 export interface QueryResult {
   columns: string[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   rows: any[];
   rowCount: number;
   executionTime: number;
@@ -369,6 +371,7 @@ export interface QueryResult {
 export interface DatabaseOperationResult {
   success: boolean;
   message: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data?: any;
   error?: string;
   executionTime?: number;
