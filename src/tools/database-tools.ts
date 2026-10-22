@@ -4,7 +4,7 @@ export const databaseTools: Tool[] = [
   // Core Database Operations (7 tools)
   {
     name: 'execute_sql',
-    description: "Execute raw SQL query on the project or central memory database (database: 'project' | 'central', default 'project')",
+    description: "Canonical memory-graph SQL inspection (use instead of hela-ribosome opencode_db). Execute raw SQL query on the project or central memory database (database: 'project' | 'central', default 'project')",
     inputSchema: {
       type: 'object',
       properties: {
@@ -17,7 +17,7 @@ export const databaseTools: Tool[] = [
   },
   {
     name: 'query_data',
-    description: "Query data from project or central memory tables (database: 'project' | 'central', default 'project')",
+    description: "Canonical memory-graph table query (use instead of hela-ribosome opencode_db). Query data from project or central memory tables (database: 'project' | 'central', default 'project')",
     inputSchema: {
       type: 'object',
       properties: {
