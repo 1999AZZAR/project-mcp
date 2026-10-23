@@ -186,8 +186,9 @@ describe('RequestHandlers', () => {
       expect(result).toHaveProperty('success', true);
     });
 
-    test('should handle create_entity tool', async () => {
-      const result = await requestHandlers.handleToolCall('create_entity', {
+    test('should handle memory_edit create_entities action', async () => {
+      const result = await requestHandlers.handleToolCall('memory_edit', {
+        action: 'create_entities',
         entities: [{
           name: 'test_project',
           entityType: 'project',
@@ -196,6 +197,19 @@ describe('RequestHandlers', () => {
       });
 
       expect(result).toHaveProperty('success', true);
+    });
+
+    test('should normalize legacy create_entity alias', async () => {
+      const result = await requestHandlers.handleToolCall('create_entity', {
+        entities: [{
+          name: 'alias_project',
+          entityType: 'project',
+          observations: ['Via a hidden alias']
+        }]
+      });
+
+      expect(result).toHaveProperty('success', true);
+      expect(result.message).toContain('Created 1 entities');
     });
 
     test('should handle read_graph tool', async () => {

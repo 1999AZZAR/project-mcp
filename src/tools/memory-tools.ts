@@ -1,7 +1,7 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 
 export const memoryTools: Tool[] = [
-  // Project Guardian Memory Tools (12 tools)
+  // Project Guardian Memory Tools (7 tools)
   {
     name: 'initialize_memory',
     description: 'Initialize the project memory system and database schema',
@@ -11,11 +11,24 @@ export const memoryTools: Tool[] = [
     },
   },
   {
-    name: 'create_entity',
-    description: 'Create entity/entities in the project knowledge graph',
+    name: 'memory_edit',
+    description:
+      'Create or delete knowledge-graph entities, relations, and observations. Select the operation with action: create_entities, create_relations, add_observations, delete_entities, delete_observations, or delete_relations.',
     inputSchema: {
       type: 'object',
       properties: {
+        action: {
+          type: 'string',
+          enum: [
+            'create_entities',
+            'create_relations',
+            'add_observations',
+            'delete_entities',
+            'delete_observations',
+            'delete_relations',
+          ],
+          description: 'Mutation to apply',
+        },
         entities: {
           type: 'array',
           items: {
@@ -28,18 +41,8 @@ export const memoryTools: Tool[] = [
             required: ['name', 'entityType', 'observations'],
           },
           minItems: 1,
-          description: 'Array of entities to create (supports single or batch)',
+          description: 'Required for create_entities',
         },
-      },
-      required: ['entities'],
-    },
-  },
-  {
-    name: 'create_relation',
-    description: 'Create relation(s) between project entities',
-    inputSchema: {
-      type: 'object',
-      properties: {
         relations: {
           type: 'array',
           items: {
@@ -52,18 +55,8 @@ export const memoryTools: Tool[] = [
             required: ['from', 'to', 'relationType'],
           },
           minItems: 1,
-          description: 'Array of relations to create (supports single or batch)',
+          description: 'Required for create_relations and delete_relations',
         },
-      },
-      required: ['relations'],
-    },
-  },
-  {
-    name: 'add_observation',
-    description: 'Add observation(s) to project entity/entities',
-    inputSchema: {
-      type: 'object',
-      properties: {
         observations: {
           type: 'array',
           items: {
@@ -75,34 +68,14 @@ export const memoryTools: Tool[] = [
             required: ['entityName', 'contents'],
           },
           minItems: 1,
-          description: 'Array of observation updates (supports single or batch)',
+          description: 'Required for add_observations',
         },
-      },
-      required: ['observations'],
-    },
-  },
-  {
-    name: 'delete_entity',
-    description: 'Delete entity/entities and their relations from project memory',
-    inputSchema: {
-      type: 'object',
-      properties: {
         entityNames: {
           type: 'array',
           items: { type: 'string' },
           minItems: 1,
-          description: 'Names of entities to delete (supports single or batch)',
+          description: 'Required for delete_entities',
         },
-      },
-      required: ['entityNames'],
-    },
-  },
-  {
-    name: 'delete_observation',
-    description: 'Remove specific observation(s) from entity/entities',
-    inputSchema: {
-      type: 'object',
-      properties: {
         deletions: {
           type: 'array',
           items: {
@@ -114,34 +87,10 @@ export const memoryTools: Tool[] = [
             required: ['entityName', 'observations'],
           },
           minItems: 1,
-          description: 'Array of observation deletions (supports single or batch)',
+          description: 'Required for delete_observations',
         },
       },
-      required: ['deletions'],
-    },
-  },
-  {
-    name: 'delete_relation',
-    description: 'Delete relation(s) between project entities',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        relations: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              from: { type: 'string', description: 'Source entity name' },
-              to: { type: 'string', description: 'Target entity name' },
-              relationType: { type: 'string', description: 'Relationship type to delete' },
-            },
-            required: ['from', 'to', 'relationType'],
-          },
-          minItems: 1,
-          description: 'Array of relations to delete (supports single or batch)',
-        },
-      },
-      required: ['relations'],
+      required: ['action'],
     },
   },
   {

@@ -2,10 +2,12 @@ import {
   SERVER_NAME,
   TOOL_SIDE_EFFECTS,
   isEnvelopeEnabled,
+  resolveSideEffects,
   wrapResult,
   wrapError,
   textResult,
   errorResult,
+  appendWarning,
 } from '../src/envelope';
 
 const ENVELOPE_KEYS = [
@@ -63,16 +65,43 @@ describe('genome envelope (P1-C1)', () => {
   });
 
   test('side-effect map: writes declare, reads empty', () => {
-    expect(TOOL_SIDE_EFFECTS['add_observation']).toEqual(['memory-write']);
-    expect(TOOL_SIDE_EFFECTS['delete_entity']).toEqual(['memory-delete']);
+    expect(TOOL_SIDE_EFFECTS['memory_edit']).toEqual(['memory-write', 'memory-delete']);
     expect(TOOL_SIDE_EFFECTS['execute_sql']).toEqual(['sql-statement']);
     expect(TOOL_SIDE_EFFECTS['insert_data']).toEqual(['data-write']);
     expect(TOOL_SIDE_EFFECTS['delete_data']).toEqual(['data-delete']);
     expect(TOOL_SIDE_EFFECTS['setup_pre_commit']).toEqual(['repo-write']);
-    expect(TOOL_SIDE_EFFECTS['cache_set']).toEqual(['cache-write']);
-    for (const t of ['search_nodes', 'read_graph', 'query_data', 'cache_get', 'get_session_context']) {
+    expect(TOOL_SIDE_EFFECTS['cache']).toEqual(['cache-write']);
+    for (const t of ['search_nodes', 'read_graph', 'query_data', 'security_scan', 'get_session_context']) {
       expect(TOOL_SIDE_EFFECTS[t]).toEqual([]);
     }
+  });
+
+  test('action-dependent side effects are resolved per call', () => {
+    expect(resolveSideEffects('memory_edit', { action: 'create_entities' }))
+      .toEqual(['memory-write']);
+    expect(resolveSideEffects('memory_edit', { action: 'delete_entities' }))
+      .toEqual(['memory-delete']);
+    expect(resolveSideEffects('cache', { action: 'get' })).toEqual([]);
+    expect(resolveSideEffects('cache', { action: 'set' })).toEqual(['cache-write']);
+    expect(resolveSideEffects('harness_sessions', { action: 'list' })).toEqual([]);
+    expect(resolveSideEffects('harness_sessions', { action: 'sync' }))
+      .toEqual(['memory-write']);
+  });
+
+  test('appendWarning preserves legacy payload and adds a visible warning', () => {
+    delete process.env['HELA_ENVELOPE'];
+    const res: any = textResult('memory_edit', { success: true });
+    const warned: any = appendWarning(res, 'legacy alias');
+    expect(JSON.parse(warned.content[0].text)).toEqual({ success: true });
+    expect(warned.content[1].text).toContain('legacy alias');
+  });
+
+  test('appendWarning adds to envelope warnings when enabled', () => {
+    process.env['HELA_ENVELOPE'] = 'true';
+    const res: any = textResult('memory_edit', { success: true });
+    const warned: any = appendWarning(res, 'legacy alias');
+    const env = JSON.parse(warned.content[0].text);
+    expect(env.warnings).toContain('legacy alias');
   });
 
   test('run/step ids propagate from env', () => {

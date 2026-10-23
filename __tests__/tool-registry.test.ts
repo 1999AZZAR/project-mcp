@@ -29,12 +29,7 @@ describe('ToolRegistry', () => {
       const toolNames = allTools.map(t => t.name);
 
       expect(toolNames).toContain('initialize_memory');
-      expect(toolNames).toContain('create_entity');
-      expect(toolNames).toContain('create_relation');
-      expect(toolNames).toContain('add_observation');
-      expect(toolNames).toContain('delete_entity');
-      expect(toolNames).toContain('delete_observation');
-      expect(toolNames).toContain('delete_relation');
+      expect(toolNames).toContain('memory_edit');
       expect(toolNames).toContain('read_graph');
       expect(toolNames).toContain('search_nodes');
       expect(toolNames).toContain('open_node');
@@ -46,27 +41,23 @@ describe('ToolRegistry', () => {
       const toolNames = allTools.map(t => t.name);
       expect(toolNames).toEqual(expect.arrayContaining([
         'get_session_context', 'analyze_git_changes', 'inspect_untrusted_text',
-        'scan_project_secrets', 'scan_container_image', 'cache_get', 'cache_set',
-        'cache_delete', 'cache_scan',
+        'security_scan', 'cache',
       ]));
     });
 
     test('should include session bridge tools', () => {
       const toolNames = allTools.map(t => t.name);
 
-      expect(toolNames).toContain('list_harness_stores');
-      expect(toolNames).toContain('sync_harness_sessions');
+      expect(toolNames).toContain('harness_sessions');
     });
 
-    test('should have exactly 38 tools', () => {
-      expect(allTools).toHaveLength(38);
+    test('should have exactly 26 tools', () => {
+      expect(allTools).toHaveLength(26);
     });
 
     test('should include UI tools', () => {
       const toolNames = allTools.map(t => t.name);
-      expect(toolNames).toContain('start_ui');
-      expect(toolNames).toContain('close_ui');
-      expect(toolNames).toContain('stop_ui');
+      expect(toolNames).toContain('ui_server');
     });
   });
 
@@ -80,12 +71,13 @@ describe('ToolRegistry', () => {
       expect(executeSqlTool!.inputSchema.properties).toHaveProperty('parameters');
     });
 
-    test('should have valid schema for create_entity tool', () => {
-      const createEntityTool = allTools.find(t => t.name === 'create_entity');
+    test('should have valid schema for memory_edit tool', () => {
+      const memoryEditTool = allTools.find(t => t.name === 'memory_edit');
 
-      expect(createEntityTool).toBeDefined();
-      expect(createEntityTool!.inputSchema).toHaveProperty('type', 'object');
-      expect(createEntityTool!.inputSchema.properties).toHaveProperty('entities');
+      expect(memoryEditTool).toBeDefined();
+      expect(memoryEditTool!.inputSchema).toHaveProperty('type', 'object');
+      expect(memoryEditTool!.inputSchema.properties).toHaveProperty('action');
+      expect(memoryEditTool!.inputSchema.properties).toHaveProperty('entities');
     });
     test('should have valid schema for get_file_context tool', () => {
       const fileTool = allTools.find(t => t.name === 'get_file_context');

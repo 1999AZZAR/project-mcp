@@ -130,7 +130,8 @@ This guide will help you set up a new project in Project Guardian with proper en
 
 ### 1. Create Project Entity
 \`\`\`typescript
-await create_entity({
+await memory_edit({
+  action: "create_entities",
   entities: [{
     name: "${projectName.toLowerCase().replace(/\s+/g, '_')}",
     entityType: "project",
@@ -178,7 +179,8 @@ const graph = await read_graph();
 
 ### 2. Create Sprint Entity
 \`\`\`typescript
-await create_entity({
+await memory_edit({
+  action: "create_entities",
   entities: [{
     name: "${sprintName.toLowerCase().replace(/\s+/g, '_')}",
     entityType: "milestone",
@@ -195,7 +197,7 @@ await create_entity({
 Create task entities for this sprint and link them to the sprint milestone.
 
 ### 4. Set Dependencies
-Use \`create_relation\` to establish task dependencies.
+Use \`memory_edit\` with action \`create_relations\` to establish task dependencies.
 
 ## Sprint Execution
 - Daily standups (track in observations)
@@ -224,7 +226,8 @@ const taskDetails = await open_node(["${taskName}"]);
 
 ### 2. Add Progress Observation
 \`\`\`typescript
-await add_observation({
+await memory_edit({
+  action: "add_observations",
   observations: [{
     entityName: "${taskName}",
     contents: [
@@ -269,7 +272,8 @@ Record issues and obstacles encountered.
 
 ### 4. Create Improvement Actions
 \`\`\`typescript
-await create_entity({
+await memory_edit({
+  action: "create_entities",
   entities: [{
     name: "improvement_[name]",
     entityType: "task",
@@ -352,7 +356,8 @@ Track and manage ${severity} severity bug.
 
 ### 1. Create Bug Entity
 \`\`\`typescript
-await create_entity({
+await memory_edit({
+  action: "create_entities",
   entities: [{
     name: "bug_${Date.now()}",
     entityType: "risk",

@@ -99,7 +99,7 @@ describe('ResourceRegistry', () => {
       const result = JSON.parse(await resourceHandlers.handleReadResource('project-guardian://companions/catalog'));
       expect(result.companions).toHaveLength(6);
       expect(result.companions.find((item: { id: string }) => item.id === 'guardian-security').tools)
-        .toContain('scan_project_secrets');
+        .toContain('security_scan');
     });
 
     test('should handle non-existent resource', async () => {

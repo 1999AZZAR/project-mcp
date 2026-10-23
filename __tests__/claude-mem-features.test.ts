@@ -182,11 +182,12 @@ describe('Claude-Mem Enhancement Features for HeLa-Genome', () => {
 
   describe('Feature D: Chronological Timeline Feed (get_timeline)', () => {
     test('returns chronological events across entities', async () => {
+      const now = new Date().toISOString();
       await memoryManager.createEntity('task:step1', 'task', [
-        '[2026-10-14T01:00:00Z] Step 1 initialized',
+        `[${now}] Step 1 initialized`,
       ]);
       await memoryManager.createEntity('task:step2', 'task', [
-        '[2026-10-14T01:30:00Z] Step 2 completed',
+        `[${now}] Step 2 completed`,
       ]);
 
       const timeline = await memoryManager.getTimeline({ limit: 10 });
@@ -197,8 +198,9 @@ describe('Claude-Mem Enhancement Features for HeLa-Genome', () => {
     });
 
     test('filters timeline by entityType', async () => {
-      await memoryManager.createEntity('task:feature-x', 'task', ['[2026-10-14T02:00:00Z] Feature X built']);
-      await memoryManager.createEntity('bug:issue-y', 'bug', ['[2026-10-14T02:05:00Z] Issue Y found']);
+      const now = new Date().toISOString();
+      await memoryManager.createEntity('task:feature-x', 'task', [`[${now}] Feature X built`]);
+      await memoryManager.createEntity('bug:issue-y', 'bug', [`[${now}] Issue Y found`]);
 
       const taskTimeline = await memoryManager.getTimeline({ entityType: 'task' });
       expect(taskTimeline.entries.every(e => e.entityType === 'task')).toBe(true);

@@ -218,6 +218,39 @@ export const DeleteRelationsSchema = z.object({
   })).min(1),
 });
 
+const EntityItemSchema = z.object({
+  name: z.string().min(1),
+  entityType: z.string().min(1),
+  observations: z.array(z.string()),
+  provenance: z.array(ObservationProvenanceSchema).optional(),
+});
+
+const RelationItemSchema = z.object({
+  from: z.string().min(1),
+  to: z.string().min(1),
+  relationType: z.string().min(1),
+});
+
+const ObservationItemSchema = z.object({
+  entityName: z.string().min(1),
+  contents: z.array(z.string()),
+  provenance: z.array(ObservationProvenanceSchema).optional(),
+});
+
+const ObservationDeletionItemSchema = z.object({
+  entityName: z.string().min(1),
+  observations: z.array(z.string()),
+});
+
+export const MemoryEditSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('create_entities'), entities: z.array(EntityItemSchema).min(1) }).strict(),
+  z.object({ action: z.literal('create_relations'), relations: z.array(RelationItemSchema).min(1) }).strict(),
+  z.object({ action: z.literal('add_observations'), observations: z.array(ObservationItemSchema).min(1) }).strict(),
+  z.object({ action: z.literal('delete_entities'), entityNames: z.array(z.string().min(1)).min(1) }).strict(),
+  z.object({ action: z.literal('delete_observations'), deletions: z.array(ObservationDeletionItemSchema).min(1) }).strict(),
+  z.object({ action: z.literal('delete_relations'), relations: z.array(RelationItemSchema).min(1) }).strict(),
+]);
+
 export const SearchNodesSchema = z.object({
   query: z.string().min(1),
   limit: z.number().int().min(1).max(100).default(20).optional(),
@@ -308,6 +341,50 @@ export const CacheScanSchema = z.object({
   cursor: z.number().int().min(0).default(0),
   count: z.number().int().min(1).max(200).default(100),
 }).strict();
+
+const CacheValueSchema = z.string().refine(
+  value => Buffer.byteLength(value, 'utf8') <= 512 * 1024,
+  'Value exceeds 512 KiB',
+);
+
+export const CacheToolSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('get'), key: CacheKeySchema }).strict(),
+  z.object({
+    action: z.literal('set'),
+    key: CacheKeySchema,
+    value: CacheValueSchema,
+    ttlSeconds: z.number().int().min(1).max(604800).optional(),
+  }).strict(),
+  z.object({ action: z.literal('delete'), key: CacheKeySchema }).strict(),
+  z.object({
+    action: z.literal('scan'),
+    pattern: z.string().min(1).max(512).regex(/^mema:/).default('mema:*'),
+    cursor: z.number().int().min(0).default(0),
+    count: z.number().int().min(1).max(200).default(100),
+  }).strict(),
+]);
+
+export const SecurityScanSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('secrets'),
+    path: z.string().max(500).default('.'),
+    exclude: z.array(z.string().min(1).max(100).regex(/^[^/\\.][^/\\]*$/)).max(50).default([]),
+    maxFindings: z.number().int().min(1).max(500).default(100),
+  }).strict(),
+  z.object({
+    action: z.literal('container'),
+    image: z.string().min(1).max(255).refine(
+      value => !value.startsWith('-') && !/[\s\0-\x1f\x7f]/.test(value),
+      'Image reference contains unsafe characters'
+    ),
+    maxFindings: z.number().int().min(1).max(500).default(100),
+  }).strict(),
+]);
+
+export const UIServerSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('start') }).strict(),
+  z.object({ action: z.literal('stop') }).strict(),
+]);
 
 export const SetProjectRootSchema = z.object({
   path: z.string().min(1).max(4096),
@@ -458,5 +535,18 @@ export const SyncHarnessSessionsSchema = z.object({
   dryRun: z.boolean().optional(),
   includeArchived: z.boolean().optional(),
 });
+
+export const HarnessSessionsSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('list') }).strict(),
+  z.object({
+    action: z.literal('sync'),
+    harnesses: z.array(HarnessIdSchema).optional(),
+    project: z.string().optional(),
+    since: z.number().optional(),
+    limit: z.number().min(1).max(500).optional(),
+    dryRun: z.boolean().optional(),
+    includeArchived: z.boolean().optional(),
+  }).strict(),
+]);
 
 export type SyncHarnessSessionsInput = z.infer<typeof SyncHarnessSessionsSchema>;

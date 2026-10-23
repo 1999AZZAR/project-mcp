@@ -12,21 +12,14 @@ export const allTools: Tool[] = [
   ...runtimeTools,
   ...sessionBridgeTools,
   {
-    name: 'start_ui',
-    description: 'Start the Project Guardian Web UI server on demand. Automatically searches for a free port and returns the local HTTP URL.',
+    name: 'ui_server',
+    description: 'Start or stop the Project Guardian Web UI server on demand. Start automatically searches for a free port and returns the local HTTP URL; stop frees the port.',
     inputSchema: {
       type: 'object',
-      properties: {},
-      required: []
-    }
-  },
-  {
-    name: 'close_ui',
-    description: 'Stop the Project Guardian Web UI server if running. Use after start_ui or to free port 3000.',
-    inputSchema: {
-      type: 'object',
-      properties: {},
-      required: []
+      properties: {
+        action: { type: 'string', enum: ['start', 'stop'], description: 'Lifecycle action' }
+      },
+      required: ['action']
     }
   },
   {
@@ -38,15 +31,6 @@ export const allTools: Tool[] = [
         cursor: { type: 'string', description: 'Base64url cursor from previous nextCursor' },
         limit: { type: 'number', description: 'Max entities per page (1-1000, default 500)' }
       },
-      required: []
-    }
-  },
-  {
-    name: 'stop_ui',
-    description: 'Alias for close_ui — stop the Web UI server.',
-    inputSchema: {
-      type: 'object',
-      properties: {},
       required: []
     }
   }

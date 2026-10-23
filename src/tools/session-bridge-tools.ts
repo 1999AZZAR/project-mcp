@@ -2,19 +2,17 @@ import { Tool } from '@modelcontextprotocol/sdk/types.js';
 
 export const sessionBridgeTools: Tool[] = [
   {
-    name: 'list_harness_stores',
-    description: 'List local agent-harness session stores (opencode, kilocode, zed, delta, antigravity, cursor, vscode, codex): paths, presence, and format notes. Read-only; never touches harness processes.',
-    inputSchema: {
-      type: 'object',
-      properties: {},
-    },
-  },
-  {
-    name: 'sync_harness_sessions',
-    description: 'Read-only sync of harness sessions (titles, summaries, timestamps; secrets redacted) into the project knowledge graph as session entities. Incremental via watermarks; supports dry-run.',
+    name: 'harness_sessions',
+    description:
+      'List local agent-harness session stores or sync their session metadata into the knowledge graph. Select action: list (read-only paths/presence/format notes) or sync (redacted titles, summaries, timestamps; supports dryRun).',
     inputSchema: {
       type: 'object',
       properties: {
+        action: {
+          type: 'string',
+          enum: ['list', 'sync'],
+          description: 'Operation to perform',
+        },
         harnesses: {
           type: 'array',
           items: { type: 'string', enum: ['opencode', 'kilocode', 'zed', 'delta', 'antigravity', 'cursor', 'vscode', 'codex'] },
@@ -26,6 +24,7 @@ export const sessionBridgeTools: Tool[] = [
         dryRun: { type: 'boolean', description: 'Report what would sync without writing' },
         includeArchived: { type: 'boolean', description: 'Include archived sessions (default false)' },
       },
+      required: ['action'],
     },
   },
 ];

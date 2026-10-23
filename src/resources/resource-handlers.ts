@@ -138,10 +138,10 @@ export class ResourceHandlers {
   private generateProjectWorkflowsTemplate(): string {
     return JSON.stringify({
       workflows: {
-        project_setup: ['create_entity (project)', 'create_entity (initial tasks)', 'create_relation (ownership)'],
-        sprint_planning: ['read_graph', 'create_entity (sprint tasks)', 'create_relation (dependencies)'],
-        progress_tracking: ['add_observation', 'search_nodes', 'open_node'],
-        retrospective: ['read_graph', 'query_data (observations)', 'create_entity (improvements)']
+        project_setup: ['memory_edit/create_entities (project)', 'memory_edit/create_entities (initial tasks)', 'memory_edit/create_relations (ownership)'],
+        sprint_planning: ['read_graph', 'memory_edit/create_entities (sprint tasks)', 'memory_edit/create_relations (dependencies)'],
+        progress_tracking: ['memory_edit/add_observations', 'search_nodes', 'open_node'],
+        retrospective: ['read_graph', 'query_data (observations)', 'memory_edit/create_entities (improvements)']
       },
       best_practices: [
         'Always create entities before relationships',

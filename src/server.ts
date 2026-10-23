@@ -23,7 +23,8 @@ import { ResourceHandlers } from './resources/resource-registry.js';
 import { projectGuardianPrompts } from './prompts/prompt-registry.js';
 import { PromptHandlers } from './prompts/prompt-registry.js';
 import { RequestHandlers } from './handlers/request-handlers.js';
-import { textResult, errorResult } from './envelope.js';
+import { appendWarning, errorResult, resolveSideEffects, textResult } from './envelope.js';
+import { normalizeToolCall } from './tool-aliases.js';
 import { BEHAVIORAL_PROTOCOL_SYSTEM_MESSAGE } from './prompts/behavioral-protocol.js';
 import { RuntimeCapabilities } from './runtime/runtime-capabilities.js';
 import { PathGuard } from './runtime/path-guard.js';
@@ -122,19 +123,32 @@ export class DatabaseMCPServer {
     });
 
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      const { name, arguments: args } = request.params;
+      const normalized = normalizeToolCall(
+        request.params.name,
+        request.params.arguments as Record<string, unknown> | undefined,
+      );
+      const sideEffects = resolveSideEffects(normalized.name, normalized.args);
 
+      let response;
       try {
-        const result = await this.requestHandlers.handleToolCall(name, args);
+        const result = await this.requestHandlers.handleToolCall(
+          normalized.name,
+          normalized.args,
+        );
         // P1-C1: single choke point — HELA_ENVELOPE=true wraps in HelaResult,
         // default returns the legacy raw JSON text byte-identical to before.
-        return textResult(name, result);
+        response = textResult(normalized.name, result, undefined, sideEffects);
       } catch (error) {
-        return errorResult(
-          name,
+        response = errorResult(
+          normalized.name,
           error instanceof Error ? error.message : 'Unknown error',
+          sideEffects,
         );
       }
+
+      return normalized.deprecated
+        ? appendWarning(response, normalized.deprecated)
+        : response;
     });
   }
 
