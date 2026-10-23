@@ -67,13 +67,14 @@ export class DatabaseMCPServer {
     }
 
     // Use only memory.db for all operations
+    const pathGuard = new PathGuard(workspaceRoot);
     this.sqliteManager = new SQLiteManager(dbPath);
-    this.importExportManager = new ImportExportManager(this.sqliteManager);
+    this.importExportManager = new ImportExportManager(this.sqliteManager, pathGuard);
     this.memoryManager = new MemoryManager(this.sqliteManager, workspaceRoot);
     this.runtimeCapabilities = new RuntimeCapabilities(
       this.memoryManager,
       this.sqliteManager,
-      new PathGuard(workspaceRoot)
+      pathGuard
     );
 
     // Initialize modular handlers

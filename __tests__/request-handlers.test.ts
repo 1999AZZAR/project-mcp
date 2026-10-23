@@ -1,10 +1,11 @@
-import { RequestHandlers } from '../src/handlers/request-handlers';
+import { RequestHandlers, isReadOnlySql } from '../src/handlers/request-handlers';
 import { SQLiteManager } from '../src/sqlite-manager';
 import { ImportExportManager } from '../src/import-export';
 import { MemoryManager } from '../src/memory-manager';
 import { PromptHandlers } from '../src/prompts/prompt-handlers';
-import { existsSync, unlinkSync, rmdirSync, readdirSync } from 'fs';
+import { existsSync, unlinkSync, rmdirSync, readdirSync, mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
+import { tmpdir } from 'os';
 import { RuntimeCapabilities } from '../src/runtime/runtime-capabilities';
 
 describe('RequestHandlers', () => {
@@ -28,6 +29,7 @@ describe('RequestHandlers', () => {
         inspectedTexts.push(input);
         return { suspicious: false, alerts: [] };
       },
+      setWorkspaceRoot: () => {},
     } as unknown as RuntimeCapabilities;
     requestHandlers = new RequestHandlers(
       sqliteManager,
@@ -39,6 +41,27 @@ describe('RequestHandlers', () => {
 
     await memoryManager.initializeMemoryDatabase();
     await sqliteManager.createDatabase('test_db');
+  });
+
+  describe('SQL write guard', () => {
+    test('allows read-only statements', () => {
+      expect(isReadOnlySql('SELECT 1')).toBe(true);
+      expect(isReadOnlySql('VALUES (1)')).toBe(true);
+      expect(isReadOnlySql('EXPLAIN QUERY PLAN SELECT 1')).toBe(true);
+      expect(isReadOnlySql('WITH one AS (SELECT 1 AS n) SELECT n FROM one')).toBe(true);
+      expect(isReadOnlySql('PRAGMA integrity_check')).toBe(true);
+      expect(isReadOnlySql('PRAGMA table_info(entities)')).toBe(true);
+      expect(isReadOnlySql('PRAGMA user_version')).toBe(true);
+    });
+
+    test('rejects writes and write-capable pragmas', () => {
+      expect(isReadOnlySql('INSERT INTO entities (name) VALUES (1)')).toBe(false);
+      expect(isReadOnlySql('WITH one AS (SELECT 1 AS n) INSERT INTO entities (name) SELECT n FROM one')).toBe(false);
+      expect(isReadOnlySql('PRAGMA user_version = 42')).toBe(false);
+      expect(isReadOnlySql('PRAGMA journal_mode(WAL)')).toBe(false);
+      expect(isReadOnlySql('PRAGMA optimize')).toBe(false);
+      expect(isReadOnlySql('')).toBe(false);
+    });
   });
 
   afterEach(async () => {
@@ -216,6 +239,75 @@ describe('RequestHandlers', () => {
       const result = await requestHandlers.handleToolCall('read_graph', {});
 
       expect(result).toHaveProperty('success', true);
+    });
+
+    test('should handle read_graph_stream tool', async () => {
+      const result = await requestHandlers.handleToolCall('read_graph_stream', {
+        limit: 10
+      });
+
+      expect(result).toHaveProperty('success', true);
+      expect(result.data).toHaveProperty('entities');
+      expect(result.data).toHaveProperty('relations');
+      expect(result.data).toHaveProperty('nextCursor');
+    });
+
+    test('should search unicode entity names', async () => {
+      await requestHandlers.handleToolCall('memory_edit', {
+        action: 'create_entities',
+        entities: [{
+          name: 'task:测试',
+          entityType: 'task',
+          observations: ['unicode search target']
+        }]
+      });
+
+      const result = await requestHandlers.handleToolCall('search_nodes', {
+        query: '测试'
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data.entities.some((entity: { name: string }) => entity.name === 'task:测试')).toBe(true);
+    });
+
+    test('should reinitialize schema after set_project_root', async () => {
+      const targetRoot = mkdtempSync(join(tmpdir(), 'guardian-root-'));
+      try {
+        const switched = await requestHandlers.handleToolCall('set_project_root', { path: targetRoot });
+        expect(switched.success).toBe(true);
+
+        const created = await requestHandlers.handleToolCall('memory_edit', {
+          action: 'create_entities',
+          entities: [{
+            name: 'root2:Only',
+            entityType: 'task',
+            observations: ['isolated root']
+          }]
+        });
+        expect(created.success).toBe(true);
+        expect(created.data).toHaveLength(1);
+
+        const graph = await requestHandlers.handleToolCall('read_graph', { database: 'project' });
+        expect(graph.success).toBe(true);
+        expect(graph.data.entities.some((entity: { name: string }) => entity.name === 'root2:Only')).toBe(true);
+
+        const exported = await requestHandlers.handleToolCall('export_data', {
+          table: 'entities',
+          filePath: 'export.json',
+          format: 'json'
+        });
+        expect(exported.success).toBe(true);
+        expect(existsSync(join(targetRoot, 'export.json'))).toBe(true);
+
+        const outside = await requestHandlers.handleToolCall('export_data', {
+          table: 'entities',
+          filePath: '/tmp/guardian-outside.json',
+          format: 'json'
+        });
+        expect(outside.success).toBe(false);
+      } finally {
+        rmSync(targetRoot, { recursive: true, force: true });
+      }
     });
 
     test('should handle search_nodes tool', async () => {

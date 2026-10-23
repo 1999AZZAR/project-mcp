@@ -23,6 +23,19 @@ export class SQLiteManager {
     this.initializeDefaultDatabase();
   }
 
+  private assertSafeIdentifier(value: unknown, kind: string): string {
+    if (typeof value !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
+      throw new Error(`Invalid ${kind}`);
+    }
+    return value;
+  }
+
+  private assertSafeColumns(values: unknown, kind: string): void {
+    if (values === undefined || values === null) return;
+    if (typeof values !== 'object' || Array.isArray(values)) throw new Error(`Invalid ${kind}`);
+    for (const key of Object.keys(values)) this.assertSafeIdentifier(key, kind);
+  }
+
   private ensureDatabasesDirectory(): void {
     if (!existsSync(this.databasesPath)) {
       mkdirSync(this.databasesPath, { recursive: true });
@@ -307,9 +320,10 @@ export class SQLiteManager {
     try {
       const startTime = Date.now();
       const db = await this.getConnection(database);
+      const table = this.assertSafeIdentifier(tableName, 'table name');
       
       // Get table schema
-      const schemaResult = await this.query(db, `PRAGMA table_info(${tableName})`);
+      const schemaResult = await this.query(db, `PRAGMA table_info(${table})`);
       
       const columns: ColumnInfo[] = schemaResult.rows.map((row: any) => ({
         name: row.name,
@@ -320,7 +334,7 @@ export class SQLiteManager {
       }));
       
       // Get indexes
-      const indexesResult = await this.query(db, `PRAGMA index_list(${tableName})`);
+      const indexesResult = await this.query(db, `PRAGMA index_list(${table})`);
       const indexes: IndexInfo[] = [];
       
       for (const indexRow of indexesResult.rows) {
@@ -334,7 +348,7 @@ export class SQLiteManager {
       }
       
       // Get row count
-      const countResult = await this.query(db, `SELECT COUNT(*) as count FROM ${tableName}`);
+      const countResult = await this.query(db, `SELECT COUNT(*) as count FROM ${table}`);
       const rowCount = countResult.rows[0].count;
       
       const tableInfo: TableInfo = {
@@ -365,8 +379,9 @@ export class SQLiteManager {
     try {
       const startTime = Date.now();
       const db = await this.getConnection(database);
+      const table = this.assertSafeIdentifier(tableName, 'table name');
       
-      await this.runQuery(db, `DROP TABLE IF EXISTS ${tableName}`);
+      await this.runQuery(db, `DROP TABLE IF EXISTS ${table}`);
       
       const executionTime = Date.now() - startTime;
       return {
@@ -387,6 +402,7 @@ export class SQLiteManager {
     try {
       const startTime = Date.now();
       const db = await this.getConnection(database);
+      const table = this.assertSafeIdentifier(tableName, 'table name');
       
       if (records.length === 0) {
         return {
@@ -397,8 +413,9 @@ export class SQLiteManager {
       }
       
       const columns = Object.keys(records[0]);
+      for (const column of columns) this.assertSafeIdentifier(column, 'column name');
       const placeholders = columns.map(() => '?').join(', ');
-      const sql = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
+      const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
       
       let insertedCount = 0;
       const useTransaction = records.length > 1;
@@ -443,8 +460,10 @@ export class SQLiteManager {
     try {
       const startTime = Date.now();
       const db = await this.getConnection(database);
+      const table = this.assertSafeIdentifier(tableName, 'table name');
+      this.assertSafeColumns(conditions, 'condition column');
       
-      let sql = `SELECT * FROM ${tableName}`;
+      let sql = `SELECT * FROM ${table}`;
       const params: any[] = [];
       
       if (conditions && Object.keys(conditions).length > 0) {
@@ -454,14 +473,16 @@ export class SQLiteManager {
       }
       
       if (orderBy) {
-        const sanitized = orderBy.replace(/[^a-zA-Z0-9_]/g, '');
+        const column = this.assertSafeIdentifier(orderBy, 'order column');
         const dir = orderDirection === 'DESC' ? 'DESC' : 'ASC';
-        sql += ` ORDER BY ${sanitized} ${dir}`;
+        sql += ` ORDER BY ${column} ${dir}`;
       }
       
-      if (limit) {
+      if (limit !== undefined) {
+        if (!Number.isInteger(limit) || limit < 0) throw new Error('Invalid limit');
         sql += ` LIMIT ${limit}`;
-        if (offset) {
+        if (offset !== undefined) {
+          if (!Number.isInteger(offset) || offset < 0) throw new Error('Invalid offset');
           sql += ` OFFSET ${offset}`;
         }
       }
@@ -492,11 +513,14 @@ export class SQLiteManager {
     try {
       const startTime = Date.now();
       const db = await this.getConnection(database);
+      const table = this.assertSafeIdentifier(tableName, 'table name');
+      this.assertSafeColumns(updates, 'update column');
+      this.assertSafeColumns(conditions, 'condition column');
       
       const setClause = Object.keys(updates).map(key => `${key} = ?`).join(', ');
       const whereClause = Object.keys(conditions).map(key => `${key} = ?`).join(' AND ');
       
-      const sql = `UPDATE ${tableName} SET ${setClause} WHERE ${whereClause}`;
+      const sql = `UPDATE ${table} SET ${setClause} WHERE ${whereClause}`;
       const params = [...Object.values(updates), ...Object.values(conditions)];
       
       const result = await this.runQuery(db, sql, params);
@@ -521,9 +545,11 @@ export class SQLiteManager {
     try {
       const startTime = Date.now();
       const db = await this.getConnection(database);
+      const table = this.assertSafeIdentifier(tableName, 'table name');
+      this.assertSafeColumns(conditions, 'condition column');
       
       const whereClause = Object.keys(conditions).map(key => `${key} = ?`).join(' AND ');
-      const sql = `DELETE FROM ${tableName} WHERE ${whereClause}`;
+      const sql = `DELETE FROM ${table} WHERE ${whereClause}`;
       const params = Object.values(conditions);
       
       const result = await this.runQuery(db, sql, params);
@@ -548,8 +574,10 @@ export class SQLiteManager {
     try {
       const startTime = Date.now();
       const db = await this.getConnection(database);
+      const table = this.assertSafeIdentifier(tableName, 'table name');
+      this.assertSafeColumns(conditions, 'condition column');
       
-      let sql = `SELECT COUNT(*) as count FROM ${tableName}`;
+      let sql = `SELECT COUNT(*) as count FROM ${table}`;
       const params: any[] = [];
       
       if (conditions) {
@@ -582,10 +610,10 @@ export class SQLiteManager {
       const startTime = Date.now();
       const db = await this.getConnection(database);
       
-      // Check if it's a SELECT query
-      const isSelect = query.trim().toUpperCase().startsWith('SELECT');
+      const firstKeyword = query.trim().split(/\s+/, 1)[0]?.toUpperCase();
+      const isRowReturning = ['SELECT', 'WITH', 'PRAGMA', 'EXPLAIN', 'VALUES'].includes(firstKeyword);
       
-      if (isSelect) {
+      if (isRowReturning) {
         const result = await this.query(db, query, parameters);
         const executionTime = Date.now() - startTime;
         

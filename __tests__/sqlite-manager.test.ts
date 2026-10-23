@@ -198,6 +198,24 @@ describe('SQLiteManager', () => {
       expect(result.data.columns).toContain('name');
     });
 
+    test('should reject unsafe table identifiers', async () => {
+      const result = await sqliteManager.queryData('test_db', 'users; DROP TABLE users; --');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Invalid table name');
+
+      const stillThere = await sqliteManager.queryData('test_db', 'users');
+      expect(stillThere.success).toBe(true);
+    });
+
+    test('should reject unsafe condition and update columns', async () => {
+      const queryResult = await sqliteManager.queryData('test_db', 'users', { 'age = 30 OR 1=1 --': 0 });
+      expect(queryResult.success).toBe(false);
+
+      const updateResult = await sqliteManager.updateData('test_db', 'users', { id: 1 }, { 'age = 99 --': 1 });
+      expect(updateResult.success).toBe(false);
+    });
+
     test('should query data with conditions', async () => {
       const records = [
         { id: 1, name: 'John Doe', email: 'john@example.com', age: 30 },
@@ -284,6 +302,16 @@ describe('SQLiteManager', () => {
         ]
       };
       await sqliteManager.createTable('test_db', 'users', schema);
+    });
+
+    test('should return rows for PRAGMA and CTE queries', async () => {
+      const pragmaResult = await sqliteManager.executeSql('test_db', 'PRAGMA integrity_check');
+      expect(pragmaResult.success).toBe(true);
+      expect(pragmaResult.data.rows[0].integrity_check).toBe('ok');
+
+      const cteResult = await sqliteManager.executeSql('test_db', 'WITH one AS (SELECT 1 AS n) SELECT n FROM one');
+      expect(cteResult.success).toBe(true);
+      expect(cteResult.data.rows[0].n).toBe(1);
     });
 
     test('should execute SELECT query', async () => {

@@ -74,7 +74,7 @@ A Model Context Protocol (MCP) server for persistent project memory, knowledge-g
 - **Core CRUD**: Essential database operations (query, insert, update, delete)
 - **SQL Execution**: Direct SQL query execution
 - **Data Transfer**: Import/export CSV and JSON files
-- **38 Tools Total**: Seven database tools, twelve memory tools (`initialize_memory`, `create_entity`, `create_relation`, `add_observation`, `delete_entity`, `delete_observation`, `delete_relation`, `read_graph`, `search_nodes`, `open_node`, `get_file_context`, `get_timeline`), one guidance tool, twelve runtime companion tools, two session bridge tools, and four UI/stream tools (`start_ui`, `close_ui`, `stop_ui`, `read_graph_stream`)
+- **26 Canonical Tools + 17 Legacy Aliases**: Seven database tools, nine memory/guidance tools (`initialize_memory`, `memory_edit`, `read_graph`, `read_graph_stream`, `search_nodes`, `open_node`, `get_file_context`, `get_timeline`, `get_project_guidance`), and ten runtime/UI tools (`sync_central_memory`, `set_project_root`, `setup_pre_commit`, `get_session_context`, `analyze_git_changes`, `inspect_untrusted_text`, `security_scan`, `cache`, `harness_sessions`, `ui_server`). Legacy names such as `create_entity` and `start_ui` remain as deprecated aliases that normalize to canonical actions
 
 ### Runtime Companion Integration
 
@@ -114,7 +114,7 @@ AgentSkills provide host-side workflows and instructions. The MCP runtime implem
 - **Input Validation**: Zod schema validation for all parameters
 - **Error Recovery**: Graceful error handling with detailed error messages
 - **Resource Management**: Automatic cleanup of connections and resources
-- **Testing**: Ten Jest suites with 93 passing tests (`WAL` + pagination + `close_ui` + `read_graph_stream` + `e2e-vector hybrid`)
+- **Testing**: Fourteen Jest suites with 153 passing tests (`WAL` + pagination + `close_ui` + `read_graph_stream` + `e2e-vector hybrid`)
 
 ## Requirements
 
@@ -175,6 +175,8 @@ When you pull new updates or modify the code, you must rebuild the server and re
 
 This MCP server currently provides **38 tools**:
 
+> **Tool reference note:** sections below preserve legacy entry points for compatibility. The canonical v1.2 surface is 26 tools; legacy names such as `create_entity`, `cache_get`, and `start_ui` normalize to canonical actions and emit a deprecation warning. Section counts include those aliases.
+
 ### Database Operations (7 tools)
 
 All database tools accept an optional `database` selector: `project` (default) targets the active project's `memory.db`, `central` targets the central aggregate at `~/memory/memory.db`.
@@ -229,7 +231,7 @@ Import data from CSV or JSON file into a memory table.
 
 **Parameters:**
 - `table` (required): Target table name
-- `filePath` (required): Path to source file
+- `filePath` (required): Workspace-relative path to the source file (absolute paths and `..` traversal are rejected unless `HELA_GENOME_ALLOW_EXTERNAL_PATHS=true`)
 - `format` (optional): File format ("csv" or "json")
 - `options` (optional): Import options (delimiter, hasHeader)
 - `database` (optional): `"project"` or `"central"`, default `"project"`
@@ -239,7 +241,7 @@ Export memory table data to CSV or JSON file.
 
 **Parameters:**
 - `table` (required): Source table name
-- `filePath` (required): Output file path
+- `filePath` (required): Workspace-relative output path (absolute paths and `..` traversal are rejected unless `HELA_GENOME_ALLOW_EXTERNAL_PATHS=true`)
 - `format` (optional): Output format ("csv" or "json")
 - `conditions` (optional): WHERE conditions to filter export
 - `options` (optional): Export options (delimiter, includeHeader)
@@ -810,8 +812,9 @@ The server reads these variables at startup:
 | `GUARDIAN_AUTO_MERGE` | unset | Set to `1` to enable scattered-database consolidation at startup. This merges nested `memory.db` files into the project-root database and deletes them, so leave it unset when sub-projects keep separate memories |
 | `REDIS_URL` | unset | Enables the Redis-backed `cache_*` tools |
 | `XDG_DATA_HOME` | platform default | Base directory for the shared fallback database outside a Git repository |
-| `HELA_GENOME_ALLOW_SQL_WRITE` | *unset = off* | Set to `true` to allow `execute_sql` writes. Reads (`SELECT`/`WITH`/`PRAGMA`/`EXPLAIN`) always allowed. |
+| `HELA_GENOME_ALLOW_SQL_WRITE` | *unset = off* | Set to `true` to allow `execute_sql` writes. Read-only `SELECT`/`WITH`/`VALUES`/`EXPLAIN` and whitelisted `PRAGMA` reads always allowed. |
 | `HELA_GENOME_ALLOW_DESTRUCTIVE` | *unset = off* | Set to `true` to allow `delete_data` and `setup_pre_commit` (Git hook install). |
+| `HELA_GENOME_ALLOW_EXTERNAL_PATHS` | *unset = off* | Set to `true` to let `import_data`/`export_data` use absolute or traversal paths outside the active project root. Off = paths must stay inside the workspace. |
 | `HELA_ENVELOPE` | *unset = off* | Set to `true` to wrap tool results in the canonical HeLaResult envelope (`ok/summary/data/artifacts/provenance/warnings/sideEffects/execution`). Off = byte-identical legacy output. Run/step ids propagate from `HELA_RUN_ID`/`HELA_STEP_ID`. |
 
 MCP clients launch servers with their own working directory, which is often your home folder rather than the project you are editing. In that situation Git detection cannot find the project and every session writes to the shared fallback database. Two ways to fix this:

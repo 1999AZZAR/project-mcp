@@ -1,5 +1,6 @@
 import { ImportExportManager } from '../src/import-export';
 import { SQLiteManager } from '../src/sqlite-manager';
+import { PathGuard } from '../src/runtime/path-guard';
 import { writeFileSync, readFileSync, existsSync, unlinkSync, rmdirSync, readdirSync } from 'fs';
 import { join } from 'path';
 
@@ -353,6 +354,24 @@ INSERT INTO users (id, name, email, age) VALUES (2, 'Jane Smith', 'jane@example.
 
       expect(result.success).toBe(false);
       expect(result.message).toContain('No data found');
+    });
+  });
+
+  describe('Workspace Path Guard', () => {
+    test('rejects absolute and traversal paths', async () => {
+      const guarded = new ImportExportManager(sqliteManager, new PathGuard(process.cwd()));
+
+      const outsideExport = await guarded.exportToFile('test_db', 'users', '/tmp/guardian-outside.json', 'json');
+      expect(outsideExport.success).toBe(false);
+      expect(outsideExport.error).toContain('workspace-relative');
+
+      const traversalExport = await guarded.exportToFile('test_db', 'users', '../guardian-outside.json', 'json');
+      expect(traversalExport.success).toBe(false);
+      expect(traversalExport.error).toContain('escapes workspace root');
+
+      const outsideImport = await guarded.importFromFile('test_db', 'users', '/etc/hosts', 'csv');
+      expect(outsideImport.success).toBe(false);
+      expect(outsideImport.error).toContain('workspace-relative');
     });
   });
 });

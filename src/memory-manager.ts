@@ -76,6 +76,7 @@ export class MemoryManager {
 
   setTargetRoot(targetRoot: string): void {
     this.targetRoot = targetRoot;
+    this.projectSchemaReady = false;
   }
 
   private async ensureCentralSchema(): Promise<void> {
@@ -976,7 +977,7 @@ export class MemoryManager {
       rawResult = { entities: ranked, relations: fts.relations };
     } else {
       // keyword default
-      const sanitizedQuery = query.replace(/[^a-zA-Z0-9_\s]/g, ' ').trim().replace(/\s+/g, ' OR ');
+      const sanitizedQuery = query.replace(/[^\p{L}\p{N}_\s]/gu, ' ').trim().replace(/\s+/g, ' OR ');
       
       // Fallback to basic LIKE if query is empty after sanitization
       if (!sanitizedQuery) {

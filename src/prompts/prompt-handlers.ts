@@ -22,7 +22,7 @@ export class PromptHandlers {
       }
 
       // Advanced prompts
-      if (['ci-cd-setup', 'architecture-review', 'cost-management', 'customer-feedback', 'innovation-planning', 'incident-response', 'knowledge-transfer', 'vendor-management'].includes(name)) {
+      if (['ci-cd-setup', 'architecture-review', 'cost-management', 'customer-feedback', 'innovation-planning', 'incident-response', 'knowledge-transfer', 'vendor-management', 'release-planning', 'risk-assessment'].includes(name)) {
         return await this.handleAdvancedPrompt(name, args);
       }
 
@@ -112,6 +112,10 @@ export class PromptHandlers {
         return this.generateKnowledgeTransferPrompt(args);
       case 'vendor-management':
         return this.generateVendorManagementPrompt(args);
+      case 'release-planning':
+        return this.generateReleasePlanningPrompt(args);
+      case 'risk-assessment':
+        return this.generateRiskAssessmentPrompt(args);
       default:
         throw new Error(`Unknown advanced prompt: ${name}`);
     }
@@ -1294,5 +1298,100 @@ Manage ${vendorType} vendor relationships and performance.
 6. Maintain strategic vendor relationships
 
 Optimize vendor relationships for maximum value delivery!`;
+  }
+
+  private generateReleasePlanningPrompt(args: Record<string, any>): string {
+    const version = args.release_version || 'next release';
+    const releaseDate = args.release_date || 'TBD';
+
+    return `# Release Planning for ${version}
+
+## Release Overview
+- **Version**: ${version}
+- **Target date**: ${releaseDate}
+- **Status**: planning
+
+## Planning Steps:
+
+### 1. Define Release Scope
+Create a milestone entity for the release and link the issues, features, and fixes included in scope.
+
+\`\`\`typescript
+await memory_edit({
+  action: "create_entities",
+  entities: [{
+    name: "release:${version}",
+    entityType: "milestone",
+    observations: [
+      "Target date: ${releaseDate}",
+      "Status: planning"
+    ]
+  }]
+});
+\`\`\`
+
+### 2. Establish Quality Gates
+- All scoped tests passing
+- No open release-blocking bugs
+- Security review completed
+- Migration and rollback plans verified
+
+### 3. Assess and Mitigate Risks
+Document release risks, owners, and mitigations as task entities, then link them to the release milestone.
+
+### 4. Coordinate Deployment
+Confirm environments, deployment windows, on-call coverage, and communication channels before the release.
+
+### 5. Track Readiness
+Use \`read_graph\` and \`get_session_context\` to review blockers and update the release checklist until every gate is satisfied.
+
+Ship only when the quality gates and rollback plan are verified.`;
+  }
+
+  private generateRiskAssessmentPrompt(args: Record<string, any>): string {
+    const description = args.risk_description || 'Unspecified risk';
+    const impact = args.impact_level || 'Medium';
+
+    return `# Risk Assessment: ${description}
+
+## Risk Profile
+- **Description**: ${description}
+- **Impact level**: ${impact}
+- **Status**: assessed
+
+## Assessment Steps:
+
+### 1. Record the Risk
+Create a risk entity with the description, impact, likelihood, owner, and current status.
+
+\`\`\`typescript
+await memory_edit({
+  action: "create_entities",
+  entities: [{
+    name: "risk:${description.toLowerCase().replace(/\s+/g, '-').slice(0, 60)}",
+    entityType: "risk",
+    observations: [
+      "Impact: ${impact}",
+      "Likelihood: [High/Medium/Low]",
+      "Status: [OPEN/MITIGATED/CLOSED]"
+    ]
+  }]
+});
+\`\`\`
+
+### 2. Identify Affected Work
+Link the risk to affected projects, tasks, or components with \`create_relations\`.
+
+### 3. Define Mitigations
+For each risk, document:
+- Preventive controls
+- Contingency plan
+- Trigger conditions
+- Owner and review date
+
+### 4. Monitor and Review
+Track the risk in \`get_session_context\` and update its observations when likelihood, impact, or status changes.
+
+Close the risk only after mitigations are verified.`;
   }
 }

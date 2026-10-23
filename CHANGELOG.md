@@ -2,6 +2,20 @@
 
 All notable changes to Project Guardian MCP.
 
+## [Unreleased]
+
+### Fixed
+- **`read_graph_stream` dispatch** — the tool was registered and documented but missing from the memory dispatch list, causing `Unknown tool`; added regression coverage.
+- **`set_project_root` schema init** — switching roots now resets the schema-ready flag so the new project database is initialized before writes.
+- **Unicode search** — `search_nodes` keeps letters and numbers in any script instead of stripping non-ASCII characters.
+- **Missing guidance handlers** — `release-planning` and `risk-assessment` now return prompts like the other 25 frameworks.
+- **Read-only SQL results** — `execute_sql` now returns rows for `PRAGMA`, `EXPLAIN`, `VALUES`, and CTE (`WITH`) queries instead of only `SELECT`.
+
+### Security
+- **Workspace path guard** — `import_data`/`export_data` reject absolute and traversal paths by default; opt out with `HELA_GENOME_ALLOW_EXTERNAL_PATHS=true`.
+- **Identifier validation** — table, condition, update, and order column names are validated before interpolation into SQL.
+- **Raw SQL write guard** — CTE writes and write-capable `PRAGMA` statements are rejected unless `HELA_GENOME_ALLOW_SQL_WRITE=true`; read-only PRAGMAs remain allowed.
+
 ## [2.0.0-beta-3] - 2026-10-14
 
 ### Added

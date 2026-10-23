@@ -1,5 +1,5 @@
 import { existsSync, realpathSync } from 'fs';
-import { isAbsolute, relative, resolve } from 'path';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'path';
 
 export class PathGuard {
   private readonly root: string;
@@ -22,6 +22,20 @@ export class PathGuard {
     const actual = realpathSync(lexical);
     this.assertContained(actual);
     return actual;
+  }
+
+  resolveNewPath(input = '.'): string {
+    if (input.includes('\0') || isAbsolute(input)) {
+      throw new Error('Path must be workspace-relative');
+    }
+    const lexical = resolve(this.root, input);
+    this.assertContained(lexical);
+    if (existsSync(lexical)) return this.resolveExistingPath(input);
+    const parent = dirname(lexical);
+    if (!existsSync(parent)) throw new Error(`Parent directory does not exist: ${relative(this.root, parent) || '.'}`);
+    const realParent = realpathSync(parent);
+    this.assertContained(realParent);
+    return join(realParent, basename(lexical));
   }
 
   toRelativePath(path: string): string {

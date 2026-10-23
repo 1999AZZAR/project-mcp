@@ -25,6 +25,44 @@ import { join, resolve, isAbsolute } from 'path';
 
 const execFileAsync = promisify(execFile);
 
+const READ_ONLY_PRAGMAS = new Set([
+  'application_id', 'auto_vacuum', 'cache_size', 'collation_list', 'compile_options',
+  'data_version', 'database_list', 'encoding', 'foreign_key_check', 'foreign_key_list',
+  'foreign_keys', 'freelist_count', 'function_list', 'index_info', 'index_list',
+  'index_xinfo', 'integrity_check', 'journal_mode', 'locking_mode', 'module_list',
+  'page_count', 'page_size', 'pragma_list', 'query_only', 'quick_check',
+  'recursive_triggers', 'schema_version', 'synchronous', 'table_info', 'table_list',
+  'table_xinfo', 'temp_store', 'user_version',
+]);
+const NO_ARGUMENT_PRAGMAS = new Set([
+  'application_id', 'auto_vacuum', 'cache_size', 'data_version', 'encoding', 'foreign_keys',
+  'freelist_count', 'journal_mode', 'locking_mode', 'page_count', 'page_size', 'query_only',
+  'recursive_triggers', 'schema_version', 'synchronous', 'temp_store', 'user_version',
+]);
+
+export function isReadOnlySql(query: string): boolean {
+  const cleaned = query
+    .replace(/--[^\n]*/g, ' ')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/'(?:''|[^'])*'/g, "''")
+    .replace(/"(?:""|[^"])*"/g, '""')
+    .replace(/`(?:``|[^`])*`/g, '``');
+  const trimmed = cleaned.trim();
+  const head = trimmed.split(/\s+/, 1)[0]?.toUpperCase();
+  if (['SELECT', 'VALUES', 'EXPLAIN'].includes(head)) return true;
+  if (head === 'WITH') {
+    return !/\b(INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|ATTACH|DETACH|VACUUM|REINDEX)\b/i.test(cleaned);
+  }
+  if (head === 'PRAGMA') {
+    const body = trimmed.slice(6).trim();
+    if (!body || body.includes('=')) return false;
+    const name = body.split(/[\s(]/, 1)[0]?.toLowerCase();
+    if (!name || !READ_ONLY_PRAGMAS.has(name)) return false;
+    return !NO_ARGUMENT_PRAGMAS.has(name) || (body === name);
+  }
+  return false;
+}
+
 const DatabaseSelector = z.enum(['project', 'central']).default('project');
 
 const toolSchemas: Record<string, z.ZodSchema> = {
@@ -85,7 +123,7 @@ export class RequestHandlers {
         return await this.handleDatabaseTool(name, args);
       }
 
-      if (['initialize_memory', 'memory_edit', 'read_graph', 'search_nodes', 'open_node', 'get_file_context', 'get_timeline', 'harness_sessions'].includes(name)) {
+      if (['initialize_memory', 'memory_edit', 'read_graph', 'read_graph_stream', 'search_nodes', 'open_node', 'get_file_context', 'get_timeline', 'harness_sessions'].includes(name)) {
         return await this.handleMemoryTool(name, args);
       }
 
@@ -146,6 +184,7 @@ export class RequestHandlers {
     await this.sqliteManager.switchDatabasesPath(workspaceRoot);
     this.memoryManager.setTargetRoot(workspaceRoot);
     this.runtimeCapabilities?.setWorkspaceRoot(workspaceRoot);
+    this.importExportManager.setWorkspaceRoot(workspaceRoot);
     await this.memoryManager.initializeMemoryDatabase();
 
     return {
@@ -193,7 +232,7 @@ export class RequestHandlers {
       case 'execute_sql': {
         // P0-A7: raw SQL reads always allowed; writes need explicit opt-in.
         const head = String(args.query || '').trim().split(/\s+/)[0]?.toUpperCase();
-        if (!['SELECT', 'WITH', 'PRAGMA', 'EXPLAIN'].includes(head) && process.env['HELA_GENOME_ALLOW_SQL_WRITE'] !== 'true') {
+        if (!isReadOnlySql(String(args.query || '')) && process.env['HELA_GENOME_ALLOW_SQL_WRITE'] !== 'true') {
           throw new Error(`refusing ${head || 'empty'} via execute_sql (set HELA_GENOME_ALLOW_SQL_WRITE=true to enable writes)`);
         }
         return await this.sqliteManager.executeSql(database, args.query, args.parameters);

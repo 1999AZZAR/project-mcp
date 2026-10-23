@@ -86,6 +86,14 @@ describe('PromptRegistry', () => {
       expect(result).toContain('Sprint 1');
     });
 
+    test('should handle every registered prompt', async () => {
+      for (const prompt of projectGuardianPrompts) {
+        const result = await promptHandlers.handleGetPrompt(prompt.name, {});
+        expect(typeof result).toBe('string');
+        expect(result.length).toBeGreaterThan(0);
+      }
+    });
+
     test('should handle non-existent prompt', async () => {
       await expect(promptHandlers.handleGetPrompt('non-existent-prompt', {}))
         .rejects.toThrow('Unknown prompt: non-existent-prompt');

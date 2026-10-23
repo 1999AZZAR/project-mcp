@@ -1,10 +1,33 @@
 import { readFileSync, writeFileSync, existsSync, createReadStream } from 'fs';
 import { createInterface } from 'readline';
 import { SQLiteManager } from './sqlite-manager.js';
+import { PathGuard } from './runtime/path-guard.js';
 import { DatabaseOperationResult } from './types.js';
 
 export class ImportExportManager {
-  constructor(private sqliteManager: SQLiteManager) {}
+  private pathGuard?: PathGuard;
+  private readonly allowExternalPaths: boolean;
+
+  constructor(private sqliteManager: SQLiteManager, pathGuard?: PathGuard) {
+    this.pathGuard = pathGuard;
+    this.allowExternalPaths = process.env['HELA_GENOME_ALLOW_EXTERNAL_PATHS'] === 'true';
+  }
+
+  setWorkspaceRoot(root: string): void {
+    this.pathGuard = new PathGuard(root);
+  }
+
+  private resolveReadPath(filePath: string): string {
+    return this.pathGuard && !this.allowExternalPaths
+      ? this.pathGuard.resolveExistingPath(filePath)
+      : filePath;
+  }
+
+  private resolveWritePath(filePath: string): string {
+    return this.pathGuard && !this.allowExternalPaths
+      ? this.pathGuard.resolveNewPath(filePath)
+      : filePath;
+  }
 
   async importFromFile(
     database: string,
@@ -15,8 +38,9 @@ export class ImportExportManager {
   ): Promise<DatabaseOperationResult> {
     try {
       const startTime = Date.now();
+      const resolvedPath = this.resolveReadPath(filePath);
 
-      if (!existsSync(filePath)) {
+      if (!existsSync(resolvedPath)) {
         return {
           success: false,
           message: `File '${filePath}' does not exist`,
@@ -30,7 +54,7 @@ export class ImportExportManager {
 
       switch (format) {
         case 'csv': {
-          const rl = createInterface({ input: createReadStream(filePath) });
+          const rl = createInterface({ input: createReadStream(resolvedPath) });
           const delimiter = options?.delimiter || ',';
           const hasHeader = options?.hasHeader !== false;
           let header: string[] = [];
@@ -82,15 +106,15 @@ export class ImportExportManager {
           return {
             success: true,
             message: `Imported ${importedCount} records from CSV file`,
-            data: { importedCount, format: 'csv', filePath },
+            data: { importedCount, format: 'csv', filePath: resolvedPath },
             executionTime: csvExecTime
           };
         }
         case 'json':
-          records = await this.parseJSON(filePath);
+          records = await this.parseJSON(resolvedPath);
           break;
         case 'sql':
-          return await this.executeSQLFile(database, filePath);
+          return await this.executeSQLFile(database, resolvedPath);
         default:
           return {
             success: false,
@@ -117,7 +141,7 @@ export class ImportExportManager {
           data: { 
             importedCount: records.length,
             format,
-            filePath 
+            filePath: resolvedPath
           },
           executionTime
         };
@@ -143,6 +167,7 @@ export class ImportExportManager {
   ): Promise<DatabaseOperationResult> {
     try {
       const startTime = Date.now();
+      const resolvedPath = this.resolveWritePath(filePath);
 
       // Query data from database
       const queryResult = await this.sqliteManager.queryData(database, table, conditions);
@@ -175,7 +200,7 @@ export class ImportExportManager {
 
       // Write to file
       const encoding = options?.encoding || 'utf8';
-      writeFileSync(filePath, content, { encoding });
+      writeFileSync(resolvedPath, content, { encoding });
 
       const executionTime = Date.now() - startTime;
       return {
@@ -184,7 +209,7 @@ export class ImportExportManager {
         data: { 
           exportedCount: rows.length,
           format,
-          filePath,
+          filePath: resolvedPath,
           columns: columns.length
         },
         executionTime
