@@ -35,7 +35,7 @@ Thank you for your interest in contributing to the Project Guardian MCP Server! 
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/1999AZZAR/project-guardian-mcp-server.git
+   git clone https://github.com/Hela-Ecosystem/project-guardian-mcp-server.git
    cd Project-Guardian-mcp-server
    ```
 

@@ -23,13 +23,13 @@ The skill focuses on defects that can affect users or production: incorrect beha
 Clone the repository into an Agent Skills directory:
 
 ```bash
-git clone https://github.com/1999AZZAR/code-reviewer.git ~/.agents/skills/code-reviewer
+git clone https://github.com/Hela-Ecosystem/code-reviewer.git ~/.agents/skills/code-reviewer
 ```
 
 OpenCode also discovers skills from its global skills directory:
 
 ```bash
-git clone https://github.com/1999AZZAR/code-reviewer.git ~/.config/opencode/skills/code-reviewer
+git clone https://github.com/Hela-Ecosystem/code-reviewer.git ~/.config/opencode/skills/code-reviewer
 ```
 
 Restart your agent after installation so it reloads the skill.

@@ -28,7 +28,7 @@
     "sqlite",
     "knowledge-base"
   ],
-  "author": "1999AZZAR",
+  "author": "Hela-Ecosystem",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",
