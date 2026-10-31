@@ -42,7 +42,7 @@ export class HttpAdapter {
             server: 'project-mcp',
             role: 'hela-genome',
             transport: 'stateless-http',
-            version: '2.0.0-beta-2',
+            version: '3.0.0',
             protocolVersion: '2026-07-28',
           }));
           return;
@@ -56,7 +56,7 @@ export class HttpAdapter {
           });
           res.end(JSON.stringify({
             name: 'project-guardian-mcp',
-            version: '2.0.0-beta-2',
+            version: '3.0.0',
             protocolVersion: '2026-07-28',
             role: 'hela-genome',
             capabilities: {
@@ -141,7 +141,7 @@ export class HttpAdapter {
                 id,
                 result: {
                   name: 'project-guardian-mcp',
-                  version: '2.0.0-beta-2',
+                  version: '3.0.0',
                   protocolVersion: '2026-07-28',
                   role: 'hela-genome',
                   capabilities: { tools: {}, resources: {}, prompts: {} },
