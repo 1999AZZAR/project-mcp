@@ -25,7 +25,7 @@ export class MemoryManager {
   private memoryDbName: string = 'memory';
   private targetRoot: string;
   private centralDbPath: string;
-  private obsidianMirror: ObsidianVaultMirror;
+  private obsidianMirror!: ObsidianVaultMirror;
   private vaultWatcher: NodeJS.Timeout | null = null;
   private vaultMtimes: Map<string, number> = new Map();
 
@@ -33,19 +33,21 @@ export class MemoryManager {
     this.sqliteManager = sqliteManager;
     this.targetRoot = targetRoot ?? process.cwd();
     this.obsidianMirror = new ObsidianVaultMirror();
-    if (this.obsidianMirror.isEnabled()) {
-      if (process.env.NODE_ENV !== 'test') {
-        (async () => {
+    if (process.env.NODE_ENV !== 'test') {
+      (async () => {
+        await this.ensureProjectSchema();
+        // Central <-> project sync: pull central entities into project (best-effort)
+        try { await this.syncFromCentral(); } catch (e) { void e; }
+        if (this.obsidianMirror.isEnabled()) {
           console.error('[obsidian] scheduling sync');
-          await this.ensureProjectSchema();
           // Vault is source of truth: pull already ran in constructor; rebuild SQLite from vault
           await this.rebuildFromVault();
           // Backfill: mirror any SQLite-only entities to vault, then push
           await this.backfillVault();
           this.startVaultWatcher();
           console.error('[obsidian] sync done');
-        })().catch((e) => { console.error('[obsidian] sync error', e); });
-      }
+        }
+      })().catch((e) => { console.error('[obsidian] sync error', e); });
     }
     const configured = process.env.GUARDIAN_CENTRAL_DB;
     this.centralDbPath = (configured && isAbsolute(configured))
@@ -248,6 +250,95 @@ export class MemoryManager {
     } catch (err) {
       console.warn('Central memory sync failed:', err);
     }
+  }
+
+  async syncFromCentral(): Promise<{ entities: number; relations: number }> {
+    if (!this.projectSchemaReady) await this.ensureProjectSchema();
+    await this.ensureCentralSchema();
+    let eCount = 0, rCount = 0;
+    try {
+      const centEntities = await this.sqliteManager.queryData(this.centralDbPath, 'entities', {}, 10000, 0, 'updated_at', 'DESC');
+      const centRelations = await this.sqliteManager.queryData(this.centralDbPath, 'relations', {}, 10000, 0);
+      if (centEntities.success && centEntities.data) {
+        for (const row of centEntities.data.rows as any[]) {
+          const ent = this.rowToEntity(row);
+          const existing = await this.sqliteManager.queryData(this.memoryDbName, 'entities', { name: ent.name });
+          const now = new Date().toISOString();
+          if (existing.success && existing.data && existing.data.rows.length > 0) {
+            await this.sqliteManager.updateData(this.memoryDbName, 'entities', { name: ent.name }, {
+              entity_type: ent.entityType,
+              observations: JSON.stringify(ent.observations),
+              updated_at: now,
+            });
+          } else {
+            try {
+              await this.sqliteManager.insertData(this.memoryDbName, 'entities', [{
+                name: ent.name,
+                entity_type: ent.entityType,
+                observations: JSON.stringify(ent.observations),
+                created_at: ent.createdAt,
+                updated_at: now,
+              }]);
+            } catch (e) { void e; }
+          }
+          eCount++;
+        }
+      }
+      if (centRelations.success && centRelations.data) {
+        for (const row of centRelations.data.rows as any[]) {
+          const rel = this.rowToRelation(row);
+          try {
+            await this.sqliteManager.insertData(this.memoryDbName, 'relations', [{
+              from_entity: rel.from,
+              to_entity: rel.to,
+              relation_type: rel.relationType,
+              created_at: rel.createdAt,
+            }]);
+            rCount++;
+          } catch (e) { void e; } // ignore duplicates
+        }
+      }
+    } catch (e) { void e; }
+    return { entities: eCount, relations: rCount };
+  }
+
+  async dedupEntities(): Promise<{ merged: number; removed: number }> {
+    if (!this.projectSchemaReady) await this.ensureProjectSchema();
+    let merged = 0, removed = 0;
+    try {
+      const res = await this.sqliteManager.queryData(this.memoryDbName, 'entities', {}, 100000, 0, 'updated_at', 'DESC');
+      if (!res.success || !res.data) return { merged, removed };
+      const entities = res.data.rows.map((row: any) => this.rowToEntity(row));
+      // group by normalized name
+      const groups = new Map<string, Entity[]>();
+      for (const e of entities) {
+        const key = e.name.trim().toLowerCase();
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(e);
+      }
+      for (const [, group] of groups) {
+        if (group.length < 2) continue;
+        // keep the first (earliest created), merge observations into it
+        const survivor = group.reduce((a, b) => (a.createdAt <= b.createdAt ? a : b));
+        const allObs = new Set<string>();
+        for (const e of group) for (const o of e.observations) allObs.add(o);
+        const mergedObs = [...allObs];
+        // update survivor
+        await this.sqliteManager.updateData(this.memoryDbName, 'entities', { name: survivor.name }, {
+          observations: JSON.stringify(mergedObs),
+          updated_at: new Date().toISOString(),
+        });
+        merged++;
+        // delete the others
+        for (const e of group) {
+          if (e.name === survivor.name) continue;
+          await this.sqliteManager.deleteData(this.memoryDbName, 'entities', { name: e.name });
+          removed++;
+        }
+      }
+    } catch (e) { void e; }
+    await this.syncToCentralSafe();
+    return { merged, removed };
   }
 
   getCentralDatabaseId(): string {
@@ -557,6 +648,9 @@ export class MemoryManager {
       updatedAt: now,
     }, entityRelations);
 
+    // Auto-sync to central (best-effort)
+    await this.syncToCentralSafe();
+
     return {
       name,
       entityType,
@@ -633,6 +727,8 @@ export class MemoryManager {
         this.obsidianMirror.syncEntity(this.rowToEntity(row), rels);
       }
     } catch (e) { void e; }
+
+    await this.syncToCentralSafe();
 
     return {
       from,
@@ -896,6 +992,8 @@ export class MemoryManager {
       updatedAt: now,
     }, updatedRelations);
 
+    await this.syncToCentralSafe();
+
     return {
       name: entity.name,
       entityType: entity.entity_type,
@@ -950,6 +1048,7 @@ export class MemoryManager {
       await this.sqliteManager.executeSql(this.memoryDbName, 'COMMIT');
       // Obsidian vault mirror (best-effort)
       this.obsidianMirror.removeEntity(entityName);
+      await this.syncToCentralSafe();
     } catch (error) {
       await this.sqliteManager.executeSql(this.memoryDbName, 'ROLLBACK');
       throw error;

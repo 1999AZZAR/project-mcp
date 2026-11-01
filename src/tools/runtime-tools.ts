@@ -26,9 +26,9 @@ export const runtimeTools: Tool[] = [
   {
     name: 'obsidian_vault',
     description:
-      'Control the optional Obsidian vault mirror (human-facing view of project memory). Select action: status, sync, rebuild, or backfill. Requires HELA_GENOME_OBSIDIAN_VAULT.',
+      'Control the optional Obsidian vault mirror (human-facing view of project memory). Select action: status, sync, rebuild, backfill, sync_central, sync_from_central, or dedup. Requires HELA_GENOME_OBSIDIAN_VAULT for vault actions.',
     inputSchema: object({
-      action: { type: 'string', enum: ['status', 'sync', 'rebuild', 'backfill'], description: 'Operation' },
+      action: { type: 'string', enum: ['status', 'sync', 'rebuild', 'backfill', 'sync_central', 'sync_from_central', 'dedup'], description: 'Operation' },
     }, ['action']),
   },
   {

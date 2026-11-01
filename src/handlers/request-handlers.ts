@@ -205,6 +205,9 @@ export class RequestHandlers {
           case 'sync': return await this.memoryManager.obsidianSync();
           case 'rebuild': return await this.memoryManager.obsidianRebuild();
           case 'backfill': return await this.memoryManager.obsidianBackfill();
+          case 'sync_central': return await this.memoryManager.syncToCentral();
+          case 'sync_from_central': return await this.memoryManager.syncFromCentral();
+          case 'dedup': return await this.memoryManager.dedupEntities();
         }
         throw new Error(`Unknown obsidian_vault action: ${args.action}`);
       default: throw new Error(`Unknown runtime tool: ${name}`);
