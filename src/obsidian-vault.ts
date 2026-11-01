@@ -72,10 +72,30 @@ export class ObsidianVaultMirror {
 
   listNotes(): string[] {
     if (!this.vaultPath) return [];
+    const out: string[] = [];
+    const walk = (dir: string, rel: string) => {
+      let entries: string[];
+      try { entries = fs.readdirSync(dir); } catch { return; }
+      for (const e of entries) {
+        const full = path.join(dir, e);
+        const r = rel ? `${rel}/${e}` : e;
+        try {
+          const st = fs.statSync(full);
+          if (st.isDirectory()) walk(full, r);
+          else if (e.endsWith('.md')) out.push(r);
+        } catch { /* skip */ }
+      }
+    };
+    walk(this.vaultPath, '');
+    return out;
+  }
+
+  readNote(filename: string): string | null {
+    if (!this.vaultPath) return null;
     try {
-      return fs.readdirSync(this.vaultPath).filter((f) => f.endsWith('.md'));
+      return fs.readFileSync(path.join(this.vaultPath, filename), 'utf8');
     } catch {
-      return [];
+      return null;
     }
   }
 
@@ -99,15 +119,6 @@ export class ObsidianVaultMirror {
       if (m) observations.push(m[1].trim());
     }
     return { name, entityType, observations };
-  }
-
-  readNote(filename: string): string | null {
-    if (!this.vaultPath) return null;
-    try {
-      return fs.readFileSync(path.join(this.vaultPath, filename), 'utf8');
-    } catch {
-      return null;
-    }
   }
 
   private safeName(name: string): string {
