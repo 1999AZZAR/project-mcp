@@ -423,12 +423,14 @@ Run a timeout-limited Trivy scan and return bounded HIGH/CRITICAL vulnerability 
 
 Project scan paths are restricted to the current Git workspace. Redis tools connect lazily and return an unavailable error when `REDIS_URL` is unset. Container scanning remains unavailable until Trivy is installed. Read `project-guardian://companions/catalog` for current capability health.
 
-### Obsidian Vault Mirror (optional)
+### Obsidian Vault Mirror (optional, remote-capable)
 
-Set `HELA_GENOME_OBSIDIAN_VAULT=/path/to/vault` to mirror entity/relation/observation writes as Markdown notes with YAML frontmatter into an Obsidian vault. SQLite remains the base engine; the web UI dashboard has been removed in favor of Obsidian.
+Set `HELA_GENOME_OBSIDIAN_VAULT=/path/to/vault` to mirror entity/relation/observation writes as Markdown notes with YAML frontmatter into an Obsidian vault. SQLite remains the base engine; the web UI dashboard has been removed in favor of Obsidian. The vault can live on another machine — use the sync hooks below.
 
-- **Env var:** `HELA_GENOME_OBSIDIAN_VAULT`
-- **Effect:** create/add/delete entity + create relation → markdown note in the vault.
+- **Env var:** `HELA_GENOME_OBSIDIAN_VAULT` — local path (can be a mount point / synced folder).
+- **Remote push:** `HELA_GENOME_OBSIDIAN_SYNC_CMD` — shell command run after each write (e.g. `rsync -a /vault/ user@host:/vault/` or `git -C /vault add -A && git -C /vault commit -m sync && git -C /vault push`).
+- **Remote pull:** `HELA_GENOME_OBSIDIAN_PULL_CMD` — shell command run on startup (e.g. `git -C /vault pull --rebase`).
+- **Bidirectional:** vault edits (new/modified/deleted notes) sync back to SQLite via a 2s polling watcher.
 - **Optional:** system works without Obsidian (vault mirror is a no-op when unset).
 
 ## AI Guidance System
