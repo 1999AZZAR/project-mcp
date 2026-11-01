@@ -175,7 +175,7 @@ When you pull new updates or modify the code, you must rebuild the server and re
 
 This MCP server currently provides **38 tools**:
 
-> **Tool reference note:** sections below preserve legacy entry points for compatibility. The canonical v1.2 surface is 26 tools; legacy names such as `create_entity`, `cache_get`, and `start_ui` normalize to canonical actions and emit a deprecation warning. Section counts include those aliases.
+> **Tool reference note:** sections below preserve legacy entry points for compatibility. The canonical surface is 26 tools (added `obsidian_vault`; removed `ui_server` in favor of the Obsidian vault mirror). Legacy names such as `create_entity` and `cache_get` normalize to canonical actions and emit a deprecation warning. Section counts include those aliases.
 
 ### Database Operations (7 tools)
 
