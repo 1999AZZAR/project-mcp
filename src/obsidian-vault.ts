@@ -111,7 +111,9 @@ export class ObsidianVaultMirror {
   }
 
   private safeName(name: string): string {
-    return name.replace(/[/\\:*?"<>|]/g, '_').slice(0, 120) || 'entity';
+    let s = (name || '').replace(/[/\\:*?"<>|]/g, '_').trim().replace(/\.+$/, '');
+    if (!s) s = 'entity';
+    return s.slice(0, 120);
   }
 
   syncEntity(entity: { name: string; entityType: string; observations: string[]; createdAt: string; updatedAt: string }, relations?: Array<{ from: string; to: string; relationType: string }>): void {
