@@ -58,7 +58,7 @@ A Model Context Protocol (MCP) server for persistent project memory, knowledge-g
 - **Daily Central Backups**: On the first sync of each day, the central database is snapshotted to `~/memory/backup/ddmmyyyy_memory.db`; the seven most recent backups are kept and older ones pruned automatically. On first run, a legacy `~/memory.db` in the home directory is migrated into the new layout and used to seed the first backup
 - **On-Demand Pre-Commit Setup**: Nothing is installed at startup. Call `setup_pre_commit` when you want a generated `.pre-commit-config.yaml` and Git hooks in the active project
 
-- **On-Demand Web UI**: Launch a terminal-themed interactive node graph via `start_ui` (and `close_ui`/`stop_ui` to free the port) to visually pan, search, and explore the project state. Desktop-only with mobile gate (`<768px` overlay), always-visible entity browser, clustered amber orbs → expand to cyan per-observation, cursor-streamed `GET /api/graph/stream?cursor=&limit=500` + `react-window` virtual list, `>1k` physics freeze.
+- **Optional Obsidian Vault Mirror**: When `HELA_GENOME_OBSIDIAN_VAULT` is set, entity/relation/observation writes are mirrored as Markdown notes with YAML frontmatter into an Obsidian vault, so humans can browse and edit project memory in Obsidian (graph view, backlinks). SQLite remains the base engine; the web UI dashboard has been removed in favor of Obsidian.
 
 ### Harness Session Bridge
 - **Read-only ingestion from 8 agent harnesses**: `opencode`, `kilocode`, `zed`, `delta`, `antigravity`, `cursor`, `vscode`, `codex`. Sources are opened read-only (SQLite `OPEN_READONLY`, capped JSONL scans) — the bridge never writes to harness stores and never touches harness processes.
@@ -74,7 +74,7 @@ A Model Context Protocol (MCP) server for persistent project memory, knowledge-g
 - **Core CRUD**: Essential database operations (query, insert, update, delete)
 - **SQL Execution**: Direct SQL query execution
 - **Data Transfer**: Import/export CSV and JSON files
-- **26 Canonical Tools + 17 Legacy Aliases**: Seven database tools, nine memory/guidance tools (`initialize_memory`, `memory_edit`, `read_graph`, `read_graph_stream`, `search_nodes`, `open_node`, `get_file_context`, `get_timeline`, `get_project_guidance`), and ten runtime/UI tools (`sync_central_memory`, `set_project_root`, `setup_pre_commit`, `get_session_context`, `analyze_git_changes`, `inspect_untrusted_text`, `security_scan`, `cache`, `harness_sessions`, `ui_server`). Legacy names such as `create_entity` and `start_ui` remain as deprecated aliases that normalize to canonical actions
+- **25 Canonical Tools + 14 Legacy Aliases**: Seven database tools, nine memory/guidance tools (`initialize_memory`, `memory_edit`, `read_graph`, `read_graph_stream`, `search_nodes`, `open_node`, `get_file_context`, `get_timeline`, `get_project_guidance`), and nine runtime tools (`sync_central_memory`, `set_project_root`, `setup_pre_commit`, `get_session_context`, `analyze_git_changes`, `inspect_untrusted_text`, `security_scan`, `cache`, `harness_sessions`). The view-only Web UI dashboard has been removed in favor of the optional Obsidian vault mirror. Legacy names such as `create_entity` remain as deprecated aliases that normalize to canonical actions
 
 ### Runtime Companion Integration
 
@@ -423,21 +423,13 @@ Run a timeout-limited Trivy scan and return bounded HIGH/CRITICAL vulnerability 
 
 Project scan paths are restricted to the current Git workspace. Redis tools connect lazily and return an unavailable error when `REDIS_URL` is unset. Container scanning remains unavailable until Trivy is installed. Read `project-guardian://companions/catalog` for current capability health.
 
-### UI Tools (4 tools)
+### Obsidian Vault Mirror (optional)
 
-#### `start_ui`
-Start the on-demand Project Guardian Web UI server to visually browse the knowledge graph in your browser. It automatically finds a free port (default `3000`, tries `3001…` on collision) and returns the local HTTP URL. The UI serves the CRT-themed force graph from `ui/dist` with correct static-path fallback (`ui/dist` → `MCPservers/.../ui/dist`).
+Set `HELA_GENOME_OBSIDIAN_VAULT=/path/to/vault` to mirror entity/relation/observation writes as Markdown notes with YAML frontmatter into an Obsidian vault. SQLite remains the base engine; the web UI dashboard has been removed in favor of Obsidian.
 
-- **Parameters:** None
-- **Returns:** `UI Server successfully started on http://localhost:<port>`
-- **Features:** Desktop-only (mobile gate at `<768px`), entity browser always visible, observation orbs (clustered amber → expand to cyan), paginated `?limit=&offset=` on `/api/graph/*`.
-
-#### `close_ui` / `stop_ui`
-Stop the Web UI server if running and free the port.
-
-- **Parameters:** None
-- **Returns:** `UI Server stopped`
-- `stop_ui` is an alias for `close_ui`.
+- **Env var:** `HELA_GENOME_OBSIDIAN_VAULT`
+- **Effect:** create/add/delete entity + create relation → markdown note in the vault.
+- **Optional:** system works without Obsidian (vault mirror is a no-op when unset).
 
 ## AI Guidance System
 
@@ -884,7 +876,7 @@ project-mcp/
 │   ├── memory-manager.ts     # Knowledge graph and FTS5 RAG semantic search
 │   ├── sqlite-manager.ts     # Database operations and connection management
 │   ├── import-export.ts      # CSV/JSON data import and export functionality
-│   ├── ui-manager.ts         # On-Demand Web UI server and port finder
+│   ├── obsidian-vault.ts     # Optional Obsidian vault mirror (human view)
 │   ├── types.ts              # TypeScript type definitions and schemas
 │   ├── handlers/
 │   │   └── request-handlers.ts # Central tool execution dispatcher
@@ -907,11 +899,7 @@ project-mcp/
 │       ├── prompt-definitions.ts    # Static prompt metadata
 │       ├── prompt-handlers.ts       # Dynamic prompt content generation
 │       └── behavioral-protocol.ts   # Shared Behavioral Protocol system prompt
-├── ui/                       # On-Demand Web UI frontend (Vite/React)
-│   ├── src/
-│   │   ├── App.tsx           # Main CRT-themed node graph visualization
-│   │   ├── main.tsx          # React DOM entry point
-│   │   └── index.css         # Styling, CRT scanlines, and CSS variables
+├── (no ui/ directory)        # Web UI dashboard removed; Obsidian vault is the human view
 │   └── vite.config.ts        # Vite build configuration
 ├── __tests__/                # Comprehensive test suite
 │   ├── tool-registry.test.ts
