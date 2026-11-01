@@ -24,9 +24,6 @@ const TOOL_ALIASES: Record<string, ToolAlias> = {
   scan_container_image: { name: 'security_scan', action: 'container' },
   list_harness_stores: { name: 'harness_sessions', action: 'list' },
   sync_harness_sessions: { name: 'harness_sessions', action: 'sync' },
-  start_ui: { name: 'ui_server', action: 'start' },
-  close_ui: { name: 'ui_server', action: 'stop' },
-  stop_ui: { name: 'ui_server', action: 'stop' },
 };
 
 export function normalizeToolCall(

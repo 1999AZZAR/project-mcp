@@ -108,7 +108,7 @@ export class MemoryManager {
     await this.ensureFtsSchema(this.centralDbPath);
     try {
       await this.sqliteManager.executeSql(this.centralDbPath, `CREATE VIRTUAL TABLE IF NOT EXISTS vec_entities USING vec0(embedding float[${384}])`);
-    } catch {}
+    } catch (e) { void e; }
   }
 
   private projectSchemaReady = false;
@@ -217,7 +217,7 @@ export class MemoryManager {
       }
       await this.sqliteManager.executeSql(this.centralDbPath, 'COMMIT');
     } catch (e) {
-      try { await this.sqliteManager.executeSql(this.centralDbPath, 'ROLLBACK'); } catch {}
+      try { await this.sqliteManager.executeSql(this.centralDbPath, 'ROLLBACK'); } catch (e) { void e; }
       throw e;
     }
 
@@ -565,7 +565,7 @@ export class MemoryManager {
       }
       await this.sqliteManager.executeSql(this.memoryDbName, 'COMMIT');
     } catch (e) {
-      try { await this.sqliteManager.executeSql(this.memoryDbName, 'ROLLBACK'); } catch {}
+      try { await this.sqliteManager.executeSql(this.memoryDbName, 'ROLLBACK'); } catch (e) { void e; }
       throw e;
     }
 
@@ -625,7 +625,7 @@ export class MemoryManager {
       }
       await this.sqliteManager.executeSql(this.memoryDbName, 'COMMIT');
     } catch (e) {
-      try { await this.sqliteManager.executeSql(this.memoryDbName, 'ROLLBACK'); } catch {}
+      try { await this.sqliteManager.executeSql(this.memoryDbName, 'ROLLBACK'); } catch (e) { void e; }
       throw e;
     }
 
@@ -697,7 +697,7 @@ export class MemoryManager {
       }
       await this.sqliteManager.executeSql(this.memoryDbName, 'COMMIT');
     } catch (e) {
-      try { await this.sqliteManager.executeSql(this.memoryDbName, 'ROLLBACK'); } catch {}
+      try { await this.sqliteManager.executeSql(this.memoryDbName, 'ROLLBACK'); } catch (e) { void e; }
       throw e;
     }
 
@@ -711,8 +711,8 @@ export class MemoryManager {
     let rowid: number | null = null;
     try {
       const r = await this.sqliteManager.executeSql(this.memoryDbName, `SELECT rowid FROM entities WHERE name=?`, [entityName]);
-      if (r.success && r.data && r.data.rows.length > 0) rowid = (r.data.rows[0] as any).rowid;
-    } catch {}
+      if (r.success && r.data && r.data.rows.length > 0) rowid = (r.data.rows[0] as { rowid: number }).rowid;
+    } catch (e) { void e; }
     await this.sqliteManager.executeSql(this.memoryDbName, 'BEGIN TRANSACTION');
     try {
       await this.sqliteManager.deleteData(this.memoryDbName, 'relations',
@@ -720,7 +720,7 @@ export class MemoryManager {
       await this.sqliteManager.deleteData(this.memoryDbName, 'relations',
         { to_entity: entityName });
       if (rowid !== null) {
-        try { await this.sqliteManager.executeSql(this.memoryDbName, `DELETE FROM vec_entities WHERE rowid=?`, [rowid]); } catch {}
+        try { await this.sqliteManager.executeSql(this.memoryDbName, `DELETE FROM vec_entities WHERE rowid=?`, [rowid]); } catch (e) { void e; }
       }
       await this.sqliteManager.deleteData(this.memoryDbName, 'entities',
         { name: entityName });
@@ -790,7 +790,7 @@ export class MemoryManager {
       }
       await this.sqliteManager.executeSql(this.memoryDbName, 'COMMIT');
     } catch (e) {
-      try { await this.sqliteManager.executeSql(this.memoryDbName, 'ROLLBACK'); } catch {}
+      try { await this.sqliteManager.executeSql(this.memoryDbName, 'ROLLBACK'); } catch (e) { void e; }
       throw e;
     }
 
@@ -905,7 +905,7 @@ export class MemoryManager {
       try {
         const json = Buffer.from(cursor, 'base64url').toString('utf8');
         decoded = JSON.parse(json);
-      } catch {}
+      } catch (e) { void e; }
     }
     // Use updated_at DESC, name ASC as tie-breaker
     const whereClause = decoded ? `WHERE (updated_at < ? OR (updated_at = ? AND name > ?))` : '';

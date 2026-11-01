@@ -13,7 +13,7 @@ import {
   AnalyzeGitChangesSchema, CacheToolSchema,
   GetSessionContextSchema, InspectUntrustedTextSchema, SecurityScanSchema,
   SetProjectRootSchema, SetupPreCommitSchema, SyncCentralMemorySchema,
-  HarnessSessionsSchema, UIServerSchema,
+  HarnessSessionsSchema,
 } from '../types.js';
 import { normalizeToolCall } from '../tool-aliases.js';
 import { locateStores } from '../session-bridge/stores.js';
@@ -89,7 +89,6 @@ const toolSchemas: Record<string, z.ZodSchema> = {
   harness_sessions: HarnessSessionsSchema,
   setup_pre_commit: SetupPreCommitSchema,
   sync_central_memory: SyncCentralMemorySchema,
-  ui_server: UIServerSchema,
 };
 
 const runtimeToolNames = new Set([
@@ -103,9 +102,7 @@ export class RequestHandlers {
     private memoryManager: MemoryManager,
     private importExportManager: ImportExportManager,
     private promptHandlers: PromptHandlers,
-    private runtimeCapabilities?: RuntimeCapabilities,
-    private startUI?: () => Promise<number>,
-    private stopUI?: () => Promise<void>
+    private runtimeCapabilities?: RuntimeCapabilities
   ) {}
 
   async handleToolCall(name: string, args: any): Promise<any> {
@@ -142,23 +139,6 @@ export class RequestHandlers {
       if (runtimeToolNames.has(name)) {
         if (!this.runtimeCapabilities) throw new Error('Runtime companions are unavailable');
         return { success: true, data: await this.handleRuntimeTool(name, args) };
-      }
-
-      if (name === 'ui_server') {
-        if (args.action === 'start') {
-          if (!this.startUI) throw new Error('UI Server is not available');
-          const port = await this.startUI();
-          return {
-            success: true,
-            message: `UI Server successfully started on http://localhost:${port}`
-          };
-        }
-        if (!this.stopUI) throw new Error('UI Server is not available');
-        await this.stopUI();
-        return {
-          success: true,
-          message: 'UI Server stopped'
-        };
       }
 
       throw new Error(`Unknown tool: ${name}`);

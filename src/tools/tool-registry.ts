@@ -12,17 +12,6 @@ export const allTools: Tool[] = [
   ...runtimeTools,
   ...sessionBridgeTools,
   {
-    name: 'ui_server',
-    description: 'Start or stop the Project Guardian Web UI server on demand. Start automatically searches for a free port and returns the local HTTP URL; stop frees the port.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        action: { type: 'string', enum: ['start', 'stop'], description: 'Lifecycle action' }
-      },
-      required: ['action']
-    }
-  },
-  {
     name: 'read_graph_stream',
     description: 'Stream the knowledge graph with cursor pagination (500/page, updated_at DESC). Returns entities, relations, nextCursor.',
     inputSchema: {

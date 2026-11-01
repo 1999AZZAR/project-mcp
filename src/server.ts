@@ -1,4 +1,4 @@
-import { UIManager } from './ui-manager.js';
+// UI dashboard removed in favor of optional Obsidian vault mirror.
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -39,7 +39,6 @@ export class DatabaseMCPServer {
   private promptHandlers: PromptHandlers;
   private requestHandlers: RequestHandlers;
   private runtimeCapabilities: RuntimeCapabilities;
-  private uiManager: UIManager;
   private httpAdapter?: HttpAdapter;
 
   constructor() {
@@ -77,8 +76,7 @@ export class DatabaseMCPServer {
       pathGuard
     );
 
-    // Initialize modular handlers
-    this.uiManager = new UIManager(this.memoryManager);
+    // Initialize modular handlers (UI dashboard removed; Obsidian vault mirror is the human-facing view)
     this.resourceHandlers = new ResourceHandlers(this.memoryManager, this.sqliteManager);
     this.promptHandlers = new PromptHandlers();
     this.requestHandlers = new RequestHandlers(
@@ -86,9 +84,7 @@ export class DatabaseMCPServer {
       this.memoryManager, 
       this.importExportManager,
       this.promptHandlers,
-      this.runtimeCapabilities,
-      this.uiManager.start.bind(this.uiManager),
-      this.uiManager.stop.bind(this.uiManager)
+      this.runtimeCapabilities
     );
 
     this.server = this.createMcpServer();
@@ -261,7 +257,7 @@ export class DatabaseMCPServer {
 
     const shutdown = async () => {
       await Promise.race([
-        Promise.allSettled([this.sqliteManager.closeAllConnections(), this.runtimeCapabilities.close(), this.uiManager.stop()]),
+        Promise.allSettled([this.sqliteManager.closeAllConnections(), this.runtimeCapabilities.close()]),
         new Promise(resolve => setTimeout(resolve, 5000))
       ]);
       process.exit(0);
@@ -294,7 +290,7 @@ export class DatabaseMCPServer {
       await this.httpAdapter.close();
     }
     await Promise.race([
-      Promise.allSettled([this.sqliteManager.closeAllConnections(), this.runtimeCapabilities.close(), this.uiManager.stop()]),
+      Promise.allSettled([this.sqliteManager.closeAllConnections(), this.runtimeCapabilities.close()]),
       new Promise(resolve => setTimeout(resolve, 5000))
     ]);
   }

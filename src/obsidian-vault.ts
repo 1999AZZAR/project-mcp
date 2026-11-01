@@ -17,7 +17,7 @@ export class ObsidianVaultMirror {
     const v = process.env.HELA_GENOME_OBSIDIAN_VAULT;
     this.vaultPath = v && v.trim() ? v.trim() : null;
     if (this.vaultPath) {
-      try { fs.mkdirSync(this.vaultPath, { recursive: true }); } catch {}
+      try { fs.mkdirSync(this.vaultPath, { recursive: true }); } catch (e) { console.error('vault mkdir failed', e); }
     }
   }
 
@@ -26,7 +26,7 @@ export class ObsidianVaultMirror {
   }
 
   private safeName(name: string): string {
-    return name.replace(/[\/\\:*?"<>|]/g, '_').slice(0, 120) || 'entity';
+    return name.replace(/[/\\:*?"<>|]/g, '_').slice(0, 120) || 'entity';
   }
 
   syncEntity(entity: { name: string; entityType: string; observations: string[]; createdAt: string; updatedAt: string }): void {
@@ -54,8 +54,8 @@ export class ObsidianVaultMirror {
         '',
       ].join('\n');
       fs.writeFileSync(filePath, frontmatter + body, 'utf8');
-    } catch {
-      // best-effort
+    } catch (e) {
+      void e;
     }
   }
 
@@ -64,8 +64,8 @@ export class ObsidianVaultMirror {
     try {
       const filePath = path.join(this.vaultPath, `${this.safeName(name)}.md`);
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-    } catch {
-      // best-effort
+    } catch (e) {
+      void e;
     }
   }
 
@@ -88,8 +88,8 @@ export class ObsidianVaultMirror {
         '',
       ].join('\n');
       fs.writeFileSync(filePath, content, 'utf8');
-    } catch {
-      // best-effort
+    } catch (e) {
+      void e;
     }
   }
 }
