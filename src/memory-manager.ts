@@ -544,14 +544,15 @@ export class MemoryManager {
     // P1-C2: provenance sidecar (best-effort, never fails the create)
     await recordObservationProvenance(this.sqliteManager, this.memoryDbName, name, sanitizedObservations, provenance);
 
-    // Obsidian vault mirror (best-effort)
+    // Obsidian vault mirror (best-effort) — include relations for graph edges
+    const entityRelations = await this.getRelationsForEntity(name);
     this.obsidianMirror.syncEntity({
       name,
       entityType,
       observations: sanitizedObservations,
       createdAt: now,
       updatedAt: now,
-    });
+    }, entityRelations);
 
     return {
       name,
@@ -614,6 +615,21 @@ export class MemoryManager {
 
     // Obsidian vault mirror (best-effort)
     this.obsidianMirror.syncRelation({ from, to, relationType, createdAt: now });
+    // Re-sync both entities so their notes include the new relation as a wikilink
+    try {
+      const fromEnt = await this.sqliteManager.queryData(this.memoryDbName, 'entities', { name: from });
+      if (fromEnt.success && fromEnt.data && fromEnt.data.rows.length > 0) {
+        const row = fromEnt.data.rows[0];
+        const rels = await this.getRelationsForEntity(from);
+        this.obsidianMirror.syncEntity(this.rowToEntity(row), rels);
+      }
+      const toEnt = await this.sqliteManager.queryData(this.memoryDbName, 'entities', { name: to });
+      if (toEnt.success && toEnt.data && toEnt.data.rows.length > 0) {
+        const row = toEnt.data.rows[0];
+        const rels = await this.getRelationsForEntity(to);
+        this.obsidianMirror.syncEntity(this.rowToEntity(row), rels);
+      }
+    } catch (e) { void e; }
 
     return {
       from,
@@ -624,6 +640,16 @@ export class MemoryManager {
   }
 
   /** Sync a single vault note into SQLite (upsert). */
+  private async getRelationsForEntity(name: string): Promise<Array<{ from: string; to: string; relationType: string }>> {
+    try {
+      const r = await this.sqliteManager.executeSql(this.memoryDbName, `SELECT from_entity, to_entity, relation_type FROM relations WHERE from_entity=? OR to_entity=?`, [name, name]);
+      if (r.success && r.data) {
+        return r.data.rows.map((row: any) => ({ from: row.from_entity, to: row.to_entity, relationType: row.relation_type }));
+      }
+    } catch (e) { void e; }
+    return [];
+  }
+
   private async syncVaultNoteToSqlite(filename: string): Promise<void> {
     if (!this.projectSchemaReady) await this.ensureProjectSchema();
     const vault = this.obsidianMirror;
@@ -722,7 +748,10 @@ export class MemoryManager {
         ? entitiesResult.data.rows.map((row: any) => this.rowToEntity(row)) : [];
       const relations = (relationsResult.success && relationsResult.data)
         ? relationsResult.data.rows.map((row: any) => this.rowToRelation(row)) : [];
-      for (const e of entities) this.obsidianMirror.syncEntity(e);
+      for (const e of entities) {
+        const rels = relations.filter((r: Relation) => r.from === e.name || r.to === e.name).map((r: Relation) => ({ from: r.from, to: r.to, relationType: r.relationType }));
+        this.obsidianMirror.syncEntity(e, rels);
+      }
       for (const r of relations) this.obsidianMirror.syncRelation(r);
       await this.obsidianMirror.flushSync();
     } catch (e) { void e; }
@@ -786,14 +815,15 @@ export class MemoryManager {
     // P1-C2: provenance sidecar (best-effort, never fails the write)
     await recordObservationProvenance(this.sqliteManager, this.memoryDbName, entityName, sanitizedContents, provenance);
 
-    // Obsidian vault mirror (best-effort)
+    // Obsidian vault mirror (best-effort) — include relations for graph edges
+    const updatedRelations = await this.getRelationsForEntity(entity.name);
     this.obsidianMirror.syncEntity({
       name: entity.name,
       entityType: entity.entity_type,
       observations: updatedObservations,
       createdAt: entity.created_at,
       updatedAt: now,
-    });
+    }, updatedRelations);
 
     return {
       name: entity.name,

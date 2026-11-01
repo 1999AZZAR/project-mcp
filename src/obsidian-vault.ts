@@ -114,7 +114,7 @@ export class ObsidianVaultMirror {
     return name.replace(/[/\\:*?"<>|]/g, '_').slice(0, 120) || 'entity';
   }
 
-  syncEntity(entity: { name: string; entityType: string; observations: string[]; createdAt: string; updatedAt: string }): void {
+  syncEntity(entity: { name: string; entityType: string; observations: string[]; createdAt: string; updatedAt: string }, relations?: Array<{ from: string; to: string; relationType: string }>): void {
     if (!this.vaultPath) return;
     try {
       const filePath = path.join(this.vaultPath, `${this.safeName(entity.name)}.md`);
@@ -128,6 +128,8 @@ export class ObsidianVaultMirror {
         '---',
         '',
       ].join('\n');
+      const outgoing = (relations || []).filter((r) => r.from === entity.name);
+      const incoming = (relations || []).filter((r) => r.to === entity.name);
       const body = [
         `# ${entity.name}`,
         '',
@@ -136,6 +138,12 @@ export class ObsidianVaultMirror {
         '## Observations',
         '',
         ...(entity.observations.length ? entity.observations.map((o) => `- ${o}`) : ['_(none)_']),
+        '',
+        '## Relations',
+        '',
+        ...outgoing.map((r) => `- [[${r.to}]] — ${r.relationType}`),
+        ...incoming.map((r) => `- [[${r.from}]] — ${r.relationType} (incoming)`),
+        ...((outgoing.length || incoming.length) ? [] : ['_(none)_']),
         '',
       ].join('\n');
       fs.writeFileSync(filePath, frontmatter + body, 'utf8');
