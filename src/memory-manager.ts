@@ -33,8 +33,14 @@ export class MemoryManager {
     this.sqliteManager = sqliteManager;
     this.targetRoot = targetRoot ?? process.cwd();
     this.obsidianMirror = new ObsidianVaultMirror();
-    if (this.obsidianMirror.isEnabled() && process.env.NODE_ENV !== 'test') {
-      this.startVaultWatcher();
+    if (this.obsidianMirror.isEnabled()) {
+      if (process.env.NODE_ENV !== 'test') {
+        (async () => {
+          await this.ensureProjectSchema();
+          await this.backfillVault();
+          this.startVaultWatcher();
+        })().catch(() => {});
+      }
     }
     const configured = process.env.GUARDIAN_CENTRAL_DB;
     this.centralDbPath = (configured && isAbsolute(configured))
@@ -700,6 +706,22 @@ export class MemoryManager {
     }, 2000);
     // don't keep process alive solely for watcher
     if (this.vaultWatcher.unref) this.vaultWatcher.unref();
+  }
+
+  /** One-time backfill: mirror all existing entities/relations to the vault. */
+  async backfillVault(): Promise<void> {
+    if (!this.obsidianMirror.isEnabled()) return;
+    if (!this.projectSchemaReady) await this.ensureProjectSchema();
+    try {
+      const entitiesResult = await this.sqliteManager.queryData(this.memoryDbName, 'entities', {}, 100000, 0, 'updated_at', 'DESC');
+      const relationsResult = await this.sqliteManager.queryData(this.memoryDbName, 'relations', {}, 100000, 0);
+      const entities = (entitiesResult.success && entitiesResult.data)
+        ? entitiesResult.data.rows.map((row: any) => this.rowToEntity(row)) : [];
+      const relations = (relationsResult.success && relationsResult.data)
+        ? relationsResult.data.rows.map((row: any) => this.rowToRelation(row)) : [];
+      for (const e of entities) this.obsidianMirror.syncEntity(e);
+      for (const r of relations) this.obsidianMirror.syncRelation(r);
+    } catch (e) { void e; }
   }
 
   stopVaultWatcher(): void {
