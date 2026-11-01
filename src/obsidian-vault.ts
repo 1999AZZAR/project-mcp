@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { exec } from 'child_process';
 
 /**
  * Optional Obsidian vault mirror for HeLa Genome.
@@ -10,15 +11,34 @@ import * as path from 'path';
  *
  * Best-effort: never throws into the calling memory operation.
  */
+
 export class ObsidianVaultMirror {
   private vaultPath: string | null;
+  private syncCmd: string | null;
+  private pullCmd: string | null;
 
   constructor() {
     const v = process.env.HELA_GENOME_OBSIDIAN_VAULT;
     this.vaultPath = v && v.trim() ? v.trim() : null;
+    this.syncCmd = process.env.HELA_GENOME_OBSIDIAN_SYNC_CMD?.trim() || null;
+    this.pullCmd = process.env.HELA_GENOME_OBSIDIAN_PULL_CMD?.trim() || null;
     if (this.vaultPath) {
       try { fs.mkdirSync(this.vaultPath, { recursive: true }); } catch (e) { console.error('vault mkdir failed', e); }
+      if (this.pullCmd) this.runCmd(this.pullCmd, 'pull');
     }
+  }
+
+  private runCmd(cmd: string, label: string): void {
+    try {
+      exec(cmd, { timeout: 30000 }, (err, stdout, stderr) => {
+        if (err) console.error(`obsidian ${label} failed:`, err.message, stderr);
+      });
+    } catch (e) { void e; }
+  }
+
+  /** Trigger a remote sync after a write (best-effort, async). */
+  private triggerSync(): void {
+    if (this.syncCmd) this.runCmd(this.syncCmd, 'sync');
   }
 
   isEnabled(): boolean {
@@ -98,6 +118,7 @@ export class ObsidianVaultMirror {
         '',
       ].join('\n');
       fs.writeFileSync(filePath, frontmatter + body, 'utf8');
+      this.triggerSync();
     } catch (e) {
       void e;
     }
@@ -108,6 +129,7 @@ export class ObsidianVaultMirror {
     try {
       const filePath = path.join(this.vaultPath, `${this.safeName(name)}.md`);
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      this.triggerSync();
     } catch (e) {
       void e;
     }
@@ -132,6 +154,7 @@ export class ObsidianVaultMirror {
         '',
       ].join('\n');
       fs.writeFileSync(filePath, content, 'utf8');
+      this.triggerSync();
     } catch (e) {
       void e;
     }
