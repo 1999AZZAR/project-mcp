@@ -423,7 +423,11 @@ Run a timeout-limited Trivy scan and return bounded HIGH/CRITICAL vulnerability 
 
 Project scan paths are restricted to the current Git workspace. Redis tools connect lazily and return an unavailable error when `REDIS_URL` is unset. Container scanning remains unavailable until Trivy is installed. Read `project-guardian://companions/catalog` for current capability health.
 
-### Obsidian Vault Mirror (optional, remote-capable)
+### Obsidian Vault Mirror (optional, remote-capable, agent-controllable)
+
+Set `HELA_GENOME_OBSIDIAN_VAULT=/path/to/vault` to mirror entity/relation/observation writes as Markdown notes with YAML frontmatter into an Obsidian vault. SQLite remains the base engine; the web UI dashboard has been removed in favor of Obsidian. The vault is the source of truth across machines; SQLite rebuilds from it on startup.
+
+**MCP tool:** `obsidian_vault` (action: `status`, `sync`, `rebuild`, `backfill`) — agents can inspect and control the mirror directly.
 
 Set `HELA_GENOME_OBSIDIAN_VAULT=/path/to/vault` to mirror entity/relation/observation writes as Markdown notes with YAML frontmatter into an Obsidian vault. SQLite remains the base engine; the web UI dashboard has been removed in favor of Obsidian. The vault can live on another machine — use the sync hooks below.
 
