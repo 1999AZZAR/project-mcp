@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { exec } from 'child_process';
+import { exec, execSync } from 'child_process';
 
 /**
  * Optional Obsidian vault mirror for HeLa Genome.
@@ -24,21 +24,42 @@ export class ObsidianVaultMirror {
     this.pullCmd = process.env.HELA_GENOME_OBSIDIAN_PULL_CMD?.trim() || null;
     if (this.vaultPath) {
       try { fs.mkdirSync(this.vaultPath, { recursive: true }); } catch (e) { console.error('vault mkdir failed', e); }
-      if (this.pullCmd) this.runCmd(this.pullCmd, 'pull');
+      // Run pull synchronously so remote state is present before backfill
+      if (this.pullCmd) {
+        try {
+          execSync(this.pullCmd, { timeout: 60000, stdio: 'ignore' });
+        } catch (e) { console.error('obsidian pull failed:', (e as Error).message); }
+      }
     }
   }
 
-  private runCmd(cmd: string, label: string): void {
-    try {
-      exec(cmd, { timeout: 30000 }, (err, stdout, stderr) => {
-        if (err) console.error(`obsidian ${label} failed:`, err.message, stderr);
-      });
-    } catch (e) { void e; }
+  private syncTimer: NodeJS.Timeout | null = null;
+
+  private runCmd(cmd: string, label: string): Promise<void> {
+    return new Promise((resolve) => {
+      try {
+        exec(cmd, { timeout: 60000 }, (err, stdout, stderr) => {
+          if (err) console.error(`obsidian ${label} failed:`, err.message, (stderr || '').slice(0, 200));
+          resolve();
+        });
+      } catch (e) { void e; resolve(); }
+    });
   }
 
-  /** Trigger a remote sync after a write (best-effort, async). */
+  /** Debounced remote sync — collapses rapid writes into one push. */
   private triggerSync(): void {
-    if (this.syncCmd) this.runCmd(this.syncCmd, 'sync');
+    if (!this.syncCmd) return;
+    if (this.syncTimer) clearTimeout(this.syncTimer);
+    this.syncTimer = setTimeout(() => {
+      this.syncTimer = null;
+      this.runCmd(this.syncCmd!, 'sync').catch(() => {});
+    }, 5000);
+  }
+
+  /** Immediate sync (used for backfill completion and shutdown). */
+  async flushSync(): Promise<void> {
+    if (this.syncTimer) { clearTimeout(this.syncTimer); this.syncTimer = null; }
+    if (this.syncCmd) await this.runCmd(this.syncCmd, 'sync');
   }
 
   isEnabled(): boolean {

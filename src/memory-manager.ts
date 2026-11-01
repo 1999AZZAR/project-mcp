@@ -36,10 +36,12 @@ export class MemoryManager {
     if (this.obsidianMirror.isEnabled()) {
       if (process.env.NODE_ENV !== 'test') {
         (async () => {
+          console.error('[obsidian] scheduling backfill');
           await this.ensureProjectSchema();
           await this.backfillVault();
           this.startVaultWatcher();
-        })().catch(() => {});
+          console.error('[obsidian] backfill done');
+        })().catch((e) => { console.error('[obsidian] backfill error', e); });
       }
     }
     const configured = process.env.GUARDIAN_CENTRAL_DB;
@@ -712,6 +714,7 @@ export class MemoryManager {
   async backfillVault(): Promise<void> {
     if (!this.obsidianMirror.isEnabled()) return;
     if (!this.projectSchemaReady) await this.ensureProjectSchema();
+    console.error('[obsidian] backfill start, vault=', this.obsidianMirror.getVaultPath());
     try {
       const entitiesResult = await this.sqliteManager.queryData(this.memoryDbName, 'entities', {}, 100000, 0, 'updated_at', 'DESC');
       const relationsResult = await this.sqliteManager.queryData(this.memoryDbName, 'relations', {}, 100000, 0);
@@ -721,6 +724,7 @@ export class MemoryManager {
         ? relationsResult.data.rows.map((row: any) => this.rowToRelation(row)) : [];
       for (const e of entities) this.obsidianMirror.syncEntity(e);
       for (const r of relations) this.obsidianMirror.syncRelation(r);
+      await this.obsidianMirror.flushSync();
     } catch (e) { void e; }
   }
 
