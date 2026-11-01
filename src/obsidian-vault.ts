@@ -129,6 +129,14 @@ export class ObsidianVaultMirror {
 
   syncEntity(entity: { name: string; entityType: string; observations: string[]; createdAt: string; updatedAt: string }, relations?: Array<{ from: string; to: string; relationType: string }>): void {
     if (!this.vaultPath) return;
+    // Skip junk/test entities
+    const n = (entity.name || '').trim().toLowerCase();
+    if (!n) return;
+    if (n.startsWith('debug:') || n.startsWith('test_') || n.startsWith('test-')) return;
+    if (n.startsWith('perf_run_') || n.startsWith('perf-run-') || n.startsWith('perf run') || n.startsWith('perf_warm_')) return;
+    if (/^[a-z]{1,3}_-?\d+/.test(n)) return;
+    if (entity.observations.length === 1 && entity.observations[0].trim().toLowerCase() === 'perf') return;
+    if (n.includes('test') && (n.includes('entity') || n.includes('write') || n.includes('vault'))) return;
     try {
       const filePath = path.join(this.vaultPath, `${this.safeName(entity.name)}.md`);
       const frontmatter = [

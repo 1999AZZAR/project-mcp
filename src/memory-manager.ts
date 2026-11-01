@@ -606,8 +606,22 @@ export class MemoryManager {
     await this.syncToCentralSafe();
   }
 
+  private isJunkEntity(name: string, observations: string[]): boolean {
+    const n = (name || '').trim().toLowerCase();
+    if (!n) return true;
+    if (n.startsWith('debug:') || n.startsWith('test_') || n.startsWith('test-')) return true;
+    if (n.startsWith('perf_run_') || n.startsWith('perf-run-') || n.startsWith('perf run') || n.startsWith('perf_warm_')) return true;
+    if (/^[a-z]{1,3}_-?\d+/.test(n)) return true;
+    if (observations.length === 1 && observations[0].trim().toLowerCase() === 'perf') return true;
+    if (n.includes('test') && (n.includes('entity') || n.includes('write') || n.includes('vault'))) return true;
+    return false;
+  }
+
   async createEntity(name: string, entityType: string, observations: string[], provenance?: Array<ObservationProvenance | undefined>): Promise<Entity> {
     if (!this.projectSchemaReady) await this.ensureProjectSchema();
+    if (this.isJunkEntity(name, observations)) {
+      throw new Error(`Refusing to create junk/test entity: ${name}`);
+    }
     const now = new Date().toISOString();
 
     // Check if entity already exists
@@ -762,6 +776,7 @@ export class MemoryManager {
     if (content === null) return;
     const parsed = vault.parseNote(content);
     if (!parsed) return;
+    if (this.isJunkEntity(parsed.name, parsed.observations)) return;
     const { name, entityType, observations } = parsed;
     const existing = await this.sqliteManager.queryData(this.memoryDbName, 'entities', { name });
     const now = new Date().toISOString();
