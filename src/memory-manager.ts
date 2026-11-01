@@ -311,7 +311,7 @@ export class MemoryManager {
       if (!fs.existsSync(backupDir)) return;
       const stale = MemoryManager.selectBackupsToPrune(fs.readdirSync(backupDir), MAX_CENTRAL_BACKUPS);
       for (const name of stale) {
-        try { fs.unlinkSync(joinPath(backupDir, name)); } catch (e) {}
+        try { fs.unlinkSync(joinPath(backupDir, name)); } catch (e) { void e; }
       }
     } catch (err) {
       console.warn('Backup pruning failed:', err);
@@ -493,7 +493,7 @@ export class MemoryManager {
             mergeCount++;
           } catch (mergeErr) {
             console.error(`Failed to merge scattered database ${dbPath}:`, mergeErr);
-            try { await this.sqliteManager.executeSql(this.memoryDbName, `DETACH DATABASE nested`); } catch (e) {}
+            try { await this.sqliteManager.executeSql(this.memoryDbName, `DETACH DATABASE nested`); } catch (e) { void e; }
           }
         }
       } catch (e) {
@@ -1012,7 +1012,7 @@ export class MemoryManager {
       this.sqliteManager.executeSql(this.centralDbPath, projSql, params),
     ]);
     const toEnts = (r: any) => (r.success && r.data) ? r.data.rows.map((row: any) => this.rowToEntity(row)) : [];
-    let merged = this.mergeGraphs([{ entities: toEnts(projRes), relations: [] }, { entities: toEnts(centRes), relations: [] }]);
+    const merged = this.mergeGraphs([{ entities: toEnts(projRes), relations: [] }, { entities: toEnts(centRes), relations: [] }]);
     // Sort merged by updated_at DESC, name ASC and slice
     merged.entities.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.name.localeCompare(b.name));
     const hasMore = merged.entities.length > capped;
