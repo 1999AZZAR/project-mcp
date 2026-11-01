@@ -26,11 +26,16 @@ export class MemoryManager {
   private targetRoot: string;
   private centralDbPath: string;
   private obsidianMirror: ObsidianVaultMirror;
+  private vaultWatcher: NodeJS.Timeout | null = null;
+  private vaultMtimes: Map<string, number> = new Map();
 
   constructor(sqliteManager: SQLiteManager, targetRoot?: string) {
     this.sqliteManager = sqliteManager;
     this.targetRoot = targetRoot ?? process.cwd();
     this.obsidianMirror = new ObsidianVaultMirror();
+    if (this.obsidianMirror.isEnabled() && process.env.NODE_ENV !== 'test') {
+      this.startVaultWatcher();
+    }
     const configured = process.env.GUARDIAN_CENTRAL_DB;
     this.centralDbPath = (configured && isAbsolute(configured))
       ? resolve(configured)
@@ -608,6 +613,97 @@ export class MemoryManager {
       relationType,
       createdAt: now
     };
+  }
+
+  /** Sync a single vault note into SQLite (upsert). */
+  private async syncVaultNoteToSqlite(filename: string): Promise<void> {
+    if (!this.projectSchemaReady) await this.ensureProjectSchema();
+    const vault = this.obsidianMirror;
+    const content = vault.readNote(filename);
+    if (content === null) return;
+    const parsed = vault.parseNote(content);
+    if (!parsed) return;
+    const { name, entityType, observations } = parsed;
+    const existing = await this.sqliteManager.queryData(this.memoryDbName, 'entities', { name });
+    const now = new Date().toISOString();
+    if (existing.success && existing.data && existing.data.rows.length > 0) {
+      const row = existing.data.rows[0] as { entity_type: string; observations: string };
+      const current = this.safeParseObservations(row.observations);
+      // only update if changed
+      const changed = row.entity_type !== entityType || JSON.stringify(current) !== JSON.stringify(observations);
+      if (changed) {
+        await this.sqliteManager.updateData(this.memoryDbName, 'entities', { name }, {
+          entity_type: entityType,
+          observations: JSON.stringify(observations),
+          updated_at: now,
+        });
+      }
+    } else {
+      // create
+      try {
+        await this.sqliteManager.insertData(this.memoryDbName, 'entities', [{
+          name,
+          entity_type: entityType,
+          observations: JSON.stringify(observations),
+          created_at: now,
+          updated_at: now,
+        }]);
+      } catch (e) { void e; }
+    }
+  }
+
+  /** Remove an entity from SQLite if its vault note was deleted. */
+  private async removeVaultNoteFromSqlite(name: string): Promise<void> {
+    if (!this.projectSchemaReady) await this.ensureProjectSchema();
+    try {
+      await this.sqliteManager.deleteData(this.memoryDbName, 'entities', { name });
+    } catch (e) { void e; }
+  }
+
+  /** Poll the vault for changes and sync to SQLite. */
+  private async syncVaultToSqlite(): Promise<void> {
+    const vault = this.obsidianMirror;
+    if (!vault.isEnabled()) return;
+    const vaultPath = vault.getVaultPath();
+    if (!vaultPath) return;
+    try {
+      const files = vault.listNotes();
+      const currentSet = new Set(files);
+      // detect deletions
+      for (const [fname] of this.vaultMtimes) {
+        if (!currentSet.has(fname)) {
+          const parsed = null;
+          // derive name from filename
+          const name = fname.replace(/\.md$/, '');
+          await this.removeVaultNoteFromSqlite(name);
+          this.vaultMtimes.delete(fname);
+        }
+      }
+      // detect new/modified
+      for (const fname of files) {
+        let mtime = 0;
+        try { mtime = fs.statSync(joinPath(vaultPath, fname)).mtimeMs; } catch { continue; }
+        const prev = this.vaultMtimes.get(fname);
+        if (prev === undefined || prev !== mtime) {
+          this.vaultMtimes.set(fname, mtime);
+          await this.syncVaultNoteToSqlite(fname);
+        }
+      }
+    } catch (e) { void e; }
+  }
+
+  private startVaultWatcher(): void {
+    // initial sync
+    this.syncVaultToSqlite().catch(() => {});
+    this.vaultWatcher = setInterval(() => {
+      this.syncVaultToSqlite().catch(() => {});
+    }, 2000);
+    // don't keep process alive solely for watcher
+    if (this.vaultWatcher.unref) this.vaultWatcher.unref();
+  }
+
+  stopVaultWatcher(): void {
+    if (this.vaultWatcher) { clearInterval(this.vaultWatcher); this.vaultWatcher = null; }
   }
 
   async createRelations(relations: Array<{ from: string; to: string; relationType: string }>): Promise<Relation[]> {

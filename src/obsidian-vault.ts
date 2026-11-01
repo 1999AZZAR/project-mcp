@@ -25,6 +25,50 @@ export class ObsidianVaultMirror {
     return this.vaultPath !== null;
   }
 
+  getVaultPath(): string | null {
+    return this.vaultPath;
+  }
+
+  listNotes(): string[] {
+    if (!this.vaultPath) return [];
+    try {
+      return fs.readdirSync(this.vaultPath).filter((f) => f.endsWith('.md'));
+    } catch {
+      return [];
+    }
+  }
+
+  /** Parse a vault note into { name, entityType, observations } or null. */
+  parseNote(content: string): { name: string; entityType: string; observations: string[] } | null {
+    const fmMatch = content.match(/^---\n([\s\S]*?)\n---\n/);
+    if (!fmMatch) return null;
+    const fm = fmMatch[1];
+    const nameMatch = fm.match(/^name:\s*(.+)$/m);
+    const typeMatch = fm.match(/^type:\s*(.+)$/m);
+    if (!nameMatch) return null;
+    let name: string;
+    let entityType: string;
+    try { name = JSON.parse(nameMatch[1].trim()); } catch { name = nameMatch[1].trim().replace(/^"|"$/g, ''); }
+    try { entityType = typeMatch ? JSON.parse(typeMatch[1].trim()) : 'concept'; } catch { entityType = typeMatch ? typeMatch[1].trim().replace(/^"|"$/g, '') : 'concept'; }
+    // observations from body: lines starting with "- "
+    const body = content.slice(fmMatch[0].length);
+    const observations: string[] = [];
+    for (const line of body.split('\n')) {
+      const m = line.match(/^- (.+)$/);
+      if (m) observations.push(m[1].trim());
+    }
+    return { name, entityType, observations };
+  }
+
+  readNote(filename: string): string | null {
+    if (!this.vaultPath) return null;
+    try {
+      return fs.readFileSync(path.join(this.vaultPath, filename), 'utf8');
+    } catch {
+      return null;
+    }
+  }
+
   private safeName(name: string): string {
     return name.replace(/[/\\:*?"<>|]/g, '_').slice(0, 120) || 'entity';
   }
