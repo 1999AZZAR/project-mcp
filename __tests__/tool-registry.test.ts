@@ -51,8 +51,8 @@ describe('ToolRegistry', () => {
       expect(toolNames).toContain('harness_sessions');
     });
 
-    test('should have exactly 25 tools', () => {
-      expect(allTools).toHaveLength(25);
+    test('should have exactly 26 tools', () => {
+      expect(allTools).toHaveLength(26);
     });
   });
 

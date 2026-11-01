@@ -24,6 +24,14 @@ export const runtimeTools: Tool[] = [
     }, ['action']),
   },
   {
+    name: 'obsidian_vault',
+    description:
+      'Control the optional Obsidian vault mirror (human-facing view of project memory). Select action: status, sync, rebuild, or backfill. Requires HELA_GENOME_OBSIDIAN_VAULT.',
+    inputSchema: object({
+      action: { type: 'string', enum: ['status', 'sync', 'rebuild', 'backfill'], description: 'Operation' },
+    }, ['action']),
+  },
+  {
     name: 'cache',
     description:
       'Read or mutate the optional Redis companion cache. Select action: get, set, delete, or scan. Keys must use the mema:<category>:<name> namespace.',

@@ -798,6 +798,36 @@ export class MemoryManager {
     } catch (e) { void e; }
   }
 
+  // Obsidian vault control (exposed to MCP tools)
+  obsidianStatus(): { enabled: boolean; vaultPath: string | null; noteCount: number } {
+    const enabled = this.obsidianMirror.isEnabled();
+    const vaultPath = this.obsidianMirror.getVaultPath();
+    let noteCount = 0;
+    if (vaultPath) {
+      try { noteCount = this.obsidianMirror.listNotes().length; } catch {}
+    }
+    return { enabled, vaultPath, noteCount };
+  }
+
+  async obsidianSync(): Promise<{ synced: boolean; noteCount: number }> {
+    await this.syncVaultToSqlite();
+    this.obsidianMirror.flushSync();
+    const noteCount = this.obsidianMirror.isEnabled() ? this.obsidianMirror.listNotes().length : 0;
+    return { synced: true, noteCount };
+  }
+
+  async obsidianRebuild(): Promise<{ rebuilt: boolean; noteCount: number }> {
+    await this.rebuildFromVault();
+    const noteCount = this.obsidianMirror.isEnabled() ? this.obsidianMirror.listNotes().length : 0;
+    return { rebuilt: true, noteCount };
+  }
+
+  async obsidianBackfill(): Promise<{ backfilled: boolean; noteCount: number }> {
+    await this.backfillVault();
+    const noteCount = this.obsidianMirror.isEnabled() ? this.obsidianMirror.listNotes().length : 0;
+    return { backfilled: true, noteCount };
+  }
+
   stopVaultWatcher(): void {
     if (this.vaultWatcher) { clearInterval(this.vaultWatcher); this.vaultWatcher = null; }
   }

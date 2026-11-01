@@ -94,6 +94,7 @@ const toolSchemas: Record<string, z.ZodSchema> = {
 const runtimeToolNames = new Set([
   'set_project_root', 'setup_pre_commit', 'sync_central_memory', 'get_session_context',
   'analyze_git_changes', 'inspect_untrusted_text', 'security_scan', 'cache',
+  'obsidian_vault',
 ]);
 
 export class RequestHandlers {
@@ -198,6 +199,14 @@ export class RequestHandlers {
           case 'scan': return this.runtimeCapabilities!.cacheScan(args);
         }
         throw new Error(`Unknown cache action: ${args.action}`);
+      case 'obsidian_vault':
+        switch (args.action) {
+          case 'status': return this.memoryManager.obsidianStatus();
+          case 'sync': return await this.memoryManager.obsidianSync();
+          case 'rebuild': return await this.memoryManager.obsidianRebuild();
+          case 'backfill': return await this.memoryManager.obsidianBackfill();
+        }
+        throw new Error(`Unknown obsidian_vault action: ${args.action}`);
       default: throw new Error(`Unknown runtime tool: ${name}`);
     }
   }
