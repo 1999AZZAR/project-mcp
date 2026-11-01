@@ -699,6 +699,12 @@ export class MemoryManager {
 
     const now = new Date().toISOString();
 
+    // Dedup: skip if this relation already exists
+    const existing = await this.sqliteManager.queryData(this.memoryDbName, 'relations', { from_entity: from, to_entity: to, relation_type: relationType });
+    if (existing.success && existing.data && existing.data.rows.length > 0) {
+      return { from, to, relationType, createdAt: (existing.data.rows[0] as { created_at: string }).created_at || now };
+    }
+
     const insertResult = await this.sqliteManager.insertData(this.memoryDbName, 'relations', [{
       from_entity: from,
       to_entity: to,
