@@ -430,6 +430,14 @@ Set `HELA_GENOME_OBSIDIAN_VAULT=/path/to/vault` to mirror entity/relation/observ
 - **Env var:** `HELA_GENOME_OBSIDIAN_VAULT` — local path (can be a mount point / synced folder).
 - **Remote push:** `HELA_GENOME_OBSIDIAN_SYNC_CMD` — shell command run after each write (e.g. `rsync -a /vault/ user@host:/vault/` or `git -C /vault add -A && git -C /vault commit -m sync && git -C /vault push`).
 - **Remote pull:** `HELA_GENOME_OBSIDIAN_PULL_CMD` — shell command run on startup (e.g. `git -C /vault pull --rebase`).
+
+**Example (self-hosted Obsidian on `servy`):**
+```bash
+HELA_GENOME_OBSIDIAN_VAULT=/home/azzar/obsidian-vaults/hela-genome
+HELA_GENOME_OBSIDIAN_PULL_CMD="rsync -a --delete servy:/home/ubuntu/projects/obsidian/web/vaults/hela-genome/ /home/azzar/obsidian-vaults/hela-genome/"
+HELA_GENOME_OBSIDIAN_SYNC_CMD="rsync -a --delete /home/azzar/obsidian-vaults/hela-genome/ servy:/home/ubuntu/projects/obsidian/web/vaults/hela-genome/"
+```
+The vault on servy is exposed via Obsidian Web (`https://obsidian.hela.my.id`) and LiveSync (`https://obsidian-sync.hela.my.id`), so notes written by hela-genome appear in your browser/mobile Obsidian automatically.
 - **Bidirectional:** vault edits (new/modified/deleted notes) sync back to SQLite via a 2s polling watcher.
 - **Optional:** system works without Obsidian (vault mirror is a no-op when unset).
 
