@@ -1,5 +1,6 @@
 import { SQLiteManager } from './sqlite-manager.js';
 import { Entity, Relation, KnowledgeGraph, SearchResult, CompactEntity, FileContextResult, TimelineResult, TimelineEntry } from './types.js';
+import { ObsidianVaultMirror } from './obsidian-vault.js';
 import { sanitizePrivateContent } from './utils/sanitize.js';
 import {
   ObservationProvenance,
@@ -24,10 +25,12 @@ export class MemoryManager {
   private memoryDbName: string = 'memory';
   private targetRoot: string;
   private centralDbPath: string;
+  private obsidianMirror: ObsidianVaultMirror;
 
   constructor(sqliteManager: SQLiteManager, targetRoot?: string) {
     this.sqliteManager = sqliteManager;
     this.targetRoot = targetRoot ?? process.cwd();
+    this.obsidianMirror = new ObsidianVaultMirror();
     const configured = process.env.GUARDIAN_CENTRAL_DB;
     this.centralDbPath = (configured && isAbsolute(configured))
       ? resolve(configured)
@@ -528,6 +531,15 @@ export class MemoryManager {
     // P1-C2: provenance sidecar (best-effort, never fails the create)
     await recordObservationProvenance(this.sqliteManager, this.memoryDbName, name, sanitizedObservations, provenance);
 
+    // Obsidian vault mirror (best-effort)
+    this.obsidianMirror.syncEntity({
+      name,
+      entityType,
+      observations: sanitizedObservations,
+      createdAt: now,
+      updatedAt: now,
+    });
+
     return {
       name,
       entityType,
@@ -586,6 +598,9 @@ export class MemoryManager {
     if (!insertResult.success) {
       throw new Error(`Failed to create relation: ${insertResult.error || insertResult.message}`);
     }
+
+    // Obsidian vault mirror (best-effort)
+    this.obsidianMirror.syncRelation({ from, to, relationType, createdAt: now });
 
     return {
       from,
@@ -649,6 +664,15 @@ export class MemoryManager {
     // P1-C2: provenance sidecar (best-effort, never fails the write)
     await recordObservationProvenance(this.sqliteManager, this.memoryDbName, entityName, sanitizedContents, provenance);
 
+    // Obsidian vault mirror (best-effort)
+    this.obsidianMirror.syncEntity({
+      name: entity.name,
+      entityType: entity.entity_type,
+      observations: updatedObservations,
+      createdAt: entity.created_at,
+      updatedAt: now,
+    });
+
     return {
       name: entity.name,
       entityType: entity.entity_type,
@@ -701,6 +725,8 @@ export class MemoryManager {
       await this.sqliteManager.deleteData(this.memoryDbName, 'entities',
         { name: entityName });
       await this.sqliteManager.executeSql(this.memoryDbName, 'COMMIT');
+      // Obsidian vault mirror (best-effort)
+      this.obsidianMirror.removeEntity(entityName);
     } catch (error) {
       await this.sqliteManager.executeSql(this.memoryDbName, 'ROLLBACK');
       throw error;
