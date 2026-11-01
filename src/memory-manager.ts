@@ -36,12 +36,15 @@ export class MemoryManager {
     if (this.obsidianMirror.isEnabled()) {
       if (process.env.NODE_ENV !== 'test') {
         (async () => {
-          console.error('[obsidian] scheduling backfill');
+          console.error('[obsidian] scheduling sync');
           await this.ensureProjectSchema();
+          // Vault is source of truth: pull already ran in constructor; rebuild SQLite from vault
+          await this.rebuildFromVault();
+          // Backfill: mirror any SQLite-only entities to vault, then push
           await this.backfillVault();
           this.startVaultWatcher();
-          console.error('[obsidian] backfill done');
-        })().catch((e) => { console.error('[obsidian] backfill error', e); });
+          console.error('[obsidian] sync done');
+        })().catch((e) => { console.error('[obsidian] sync error', e); });
       }
     }
     const configured = process.env.GUARDIAN_CENTRAL_DB;
@@ -737,6 +740,44 @@ export class MemoryManager {
   }
 
   /** One-time backfill: mirror all existing entities/relations to the vault. */
+  /** Rebuild SQLite from vault (vault is source of truth). Upserts all vault notes. */
+  async rebuildFromVault(): Promise<void> {
+    if (!this.obsidianMirror.isEnabled()) return;
+    if (!this.projectSchemaReady) await this.ensureProjectSchema();
+    const vault = this.obsidianMirror;
+    const vaultPath = vault.getVaultPath();
+    if (!vaultPath) return;
+    try {
+      for (const fname of vault.listNotes()) {
+        const content = vault.readNote(fname);
+        if (!content) continue;
+        const parsed = vault.parseNote(content);
+        if (!parsed) continue;
+        const { name, entityType, observations } = parsed;
+        const existing = await this.sqliteManager.queryData(this.memoryDbName, 'entities', { name });
+        const now = new Date().toISOString();
+        if (existing.success && existing.data && existing.data.rows.length > 0) {
+          await this.sqliteManager.updateData(this.memoryDbName, 'entities', { name }, {
+            entity_type: entityType,
+            observations: JSON.stringify(observations),
+            updated_at: now,
+          });
+        } else {
+          try {
+            await this.sqliteManager.insertData(this.memoryDbName, 'entities', [{
+              name,
+              entity_type: entityType,
+              observations: JSON.stringify(observations),
+              created_at: now,
+              updated_at: now,
+            }]);
+          } catch (e) { void e; }
+        }
+      }
+      console.error('[obsidian] rebuild from vault done');
+    } catch (e) { void e; }
+  }
+
   async backfillVault(): Promise<void> {
     if (!this.obsidianMirror.isEnabled()) return;
     if (!this.projectSchemaReady) await this.ensureProjectSchema();
